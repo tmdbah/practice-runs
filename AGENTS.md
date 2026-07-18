@@ -8,7 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Practice Runs
 
-> **A no-login, mobile-first tool for a pickup basketball crew to set weekly availability and see when enough people overlap to actually get a run together.**
+> **A mobile-first tool for a pickup basketball crew to set weekly availability and see when enough people overlap to actually get a run together.**
 
 ---
 
@@ -26,7 +26,7 @@ Read the following to get the full context of the project:
 
 ## Project Overview
 
-Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built, account-free app. Status: planning complete, Phase 1 not started.
+Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built app. Status: planning complete, Phase 1 not started.
 
 ---
 

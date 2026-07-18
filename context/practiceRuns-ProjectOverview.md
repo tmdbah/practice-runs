@@ -1,6 +1,6 @@
 # Practice Runs — Project Overview
 
-> **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps, no account needed.
+> **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps.
 > **Status:** Planning complete. Phase 1 not started.
 > **Version:** V1 — MVP (recurring availability grid)
 
