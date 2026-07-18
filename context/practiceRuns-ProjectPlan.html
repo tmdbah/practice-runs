@@ -281,6 +281,13 @@
         <p>$100 split 1 way isn't happening; split 10 ways is easy. Where the actual threshold sits is a team decision (8? 10?), not something to hardcode. <code>Session.minPlayers</code> stays editable per session rather than defaulted, so it's set once the number's agreed on and can vary by venue if cost differs.</p>
       </div>
     </div>
+    <div class="decision">
+      <div class="tag">Onboarding</div>
+      <div class="body">
+        <strong>First-visit walkthrough, dismissible, persisted the same way as identity</strong>
+        <p>A short tour shown once, right after the name picker, that spotlights the core loop &mdash; tap a cell, the This Week/Usual toggle, the team window readout &mdash; so a brand-new player doesn't have to ask the group chat what to do. Dismissal is a <code>hasSeenTour</code> flag in <code>localStorage</code>, mirroring how identity is already stored: no accounts, no DB table, no server round-trip. Scoped to Phase 4 (Polish) since it needs the real grid/toggle/team-window UI to walk through &mdash; see Build phases.</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -290,6 +297,11 @@
     <div class="flow-node">
       <div class="label">First visit</div>
       <div class="sub">Pick your name once</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="label">Onboarding tour <span class="badge amber" style="margin-left:4px;">Phase 4</span></div>
+      <div class="sub">Dismissible, shown once — spotlights cell tap, toggle, team window</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-node">
@@ -614,7 +626,7 @@ model Rsvp {
     <div class="rail"><div class="dot">4</div><div class="stem"></div></div>
     <div class="content">
       <h3>Polish</h3>
-      <p>First-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
+      <p>First-visit identity persistence, <strong>first-visit onboarding walkthrough</strong> (dismissible tour of the grid, the This Week/Usual toggle, and the team window, gated on <code>hasSeenTour</code> in <code>localStorage</code> &mdash; see Decisions log), add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
     </div>
   </div>
   <div class="phase-row">

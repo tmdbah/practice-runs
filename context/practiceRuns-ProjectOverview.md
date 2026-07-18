@@ -49,6 +49,12 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 - Live cost-per-person split and minimum-headcount check for rented-gym sessions
 - Admin-added venues (INSZN is a usable first entry: ~$100/2hr, `RENTED_GYM`)
 
+### V4 — Polish (Phase 4)
+
+- **First-visit onboarding walkthrough** — a short, dismissible tour that guides a brand-new player through the core loop (pick your name → tap a cell → This Week/Usual toggle → team window readout) so they know what to do without asking in the group chat. Persisted via a `hasSeenTour` flag in `localStorage`, same mechanism as identity — no DB table, no accounts. Dismissed once, never shown again on that device. See Decisions log and Open Questions for approach.
+- First-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction
+- Demo team + daily reset job + demo banner (portfolio safety, see Decisions log)
+
 ### Future / Deferred
 
 - Auth (NextAuth v5) + per-team permissions — gated on a real trigger, see Decisions log
@@ -211,6 +217,7 @@ model Rsvp {
 | Screen | Purpose |
 |---|---|
 | First visit — name picker | Pick your name from the roster once; remembered on this device |
+| Onboarding walkthrough (Phase 4) | Short, dismissible tour shown once on first visit after the name picker — spotlights the grid, a cell tap, the This Week/Usual toggle, and the team window readout. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
 | Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live team window per day |
 | Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save |
 | Session proposal (Phase 3) | Venue + date + time slots, RSVP count vs. minPlayers, live cost/person now vs. at threshold, "I'm in" |
@@ -264,6 +271,7 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Auth | Deferred | Not built until there's a concrete trigger: opening this beyond TJ's trust circle. Auth alone wouldn't even fix portfolio exposure — see Portfolio row |
 | Portfolio | Separate demo team (`/team/demo`), not a login wall | Seeded fake data, reset daily; the real team's URL is simply never posted publicly |
 | Min players | Open question — kept as an editable per-session field | Team needs to agree on the real headcount threshold (8? 10?); varies by venue cost |
+| Onboarding | First-visit walkthrough, dismissible, `localStorage`-persisted (`hasSeenTour`) | Mirrors the identity mechanism — no accounts, no DB table; new players shouldn't need to ask the group chat what to do |
 
 ---
 
@@ -293,7 +301,7 @@ Surfaced from group chat transcripts (2026-07-17): the recurring weekly grid ans
 1. **Core grid, Usual Schedule only** — Next.js scaffold, Prisma schema + Neon connection, `/team/[slug]` renders the grid, tap-to-edit works for Usual Schedule. No overrides, no team window math yet.
 2. **This Week overrides + team window** — This Week / Usual toggle, `DateOverride` writes, inherited-vs-overridden styling, live overlap calculation.
 3. **Sessions & venues (partially unblocked)** — Propose a one-off session, RSVP, live cost split + minimum-headcount check for rented-gym sessions. INSZN is a usable first venue.
-4. **Polish** — First-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction, demo team + daily reset job + demo banner.
+4. **Polish** — First-visit identity persistence, **first-visit onboarding walkthrough** (dismissible tour of grid/toggle/team-window, gated on `hasSeenTour` in `localStorage`), add-player flow, empty/error states, pull-to-refresh interaction, demo team + daily reset job + demo banner.
 5. **Auth (gated, not scheduled)** — Google/email via NextAuth + per-team permissions. Triggered only by opening this up beyond TJ's direct trust circle.
 
 ---
@@ -345,6 +353,7 @@ Rules:
 - [ ] Real minimum-headcount threshold for booking a rented gym (8? 10?) — needs an actual team conversation
 - [ ] Full authoritative roster — pull directly from the group, don't reconstruct from scattered chat messages
 - [ ] Address/hours for venues beyond INSZN
+- [ ] Onboarding tour implementation — coach-marks library (e.g. `driver.js`, `react-joyride`) spotlighting real UI vs. a scripted first-session state (auto-opening the edit drawer, pre-highlighting a cell) that has the player perform the real action instead of watching a fake demo; decide when Phase 4 starts
 
 ---
 
