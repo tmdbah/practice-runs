@@ -12,7 +12,8 @@ Each numbered item below is scoped to be one feature branch, per the `ai-interac
 - `DateOverride` model, This Week toggle, or any override-write logic (Phase 2)
 - Team window / overlap calculation (Phase 2)
 - `Venue`, `Session`, `Rsvp` models or any session UI (Phase 3)
-- Auth, demo team (Phase 4/5)
+- Auth (Phase 5)
+- The demo team's daily reset job and "you're viewing a demo" banner (Phase 4) — Phase 1 only needs the seed data itself, not that infrastructure
 
 ---
 
@@ -61,7 +62,10 @@ model DayDefault {
 **Acceptance criteria:**
 - `prisma migrate dev` runs clean against a Neon connection string in `.env.local`
 - `prisma migrate status` reports in sync
-- A seed script (`prisma/seed.ts`) creates one `Team` (slug `uncrowned-kings`) with a handful of `Player` rows — each with their real jersey number — and 7 `DayDefault` rows per player defaulted to `UNAVAILABLE`
+- A seed script (`prisma/seed.ts`) creates one **demo** `Team` (fake slug, e.g. `demo-team`) with a handful of fake `Player` rows — fake names, fake jersey numbers — and 7 `DayDefault` rows per player defaulted to `UNAVAILABLE`. This is the same demo data Phase 4's `/team/demo` needs, just created now instead of later — see note below
+- The seed script never creates or references the real `uncrowned-kings` team, its real player names, or real jersey numbers — nothing real-team-shaped is committed to the repo
+
+**Note — real team is not seeded:** the real `uncrowned-kings` team gets created once, live, through the app's own add-player flow after Phase 1 ships (that flow itself doesn't land until Phase 4 — see `feature-phase-4-spec.md` → Add-player flow — so until then, real roster entry may require a one-off manual DB insert or an admin script kept out of the committed seed file). It is never committed to a seed script or migration, since this repo is public.
 
 ---
 

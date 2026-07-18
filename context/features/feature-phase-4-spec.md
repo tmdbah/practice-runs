@@ -51,12 +51,12 @@ Work the items below in order where there's a real dependency (4 must come after
 
 ---
 
-### 4. Demo team + daily reset + demo banner
+### 4. Demo team — daily reset + demo banner
 
-**Goal:** A second seeded `Team` at `/team/demo` with fake players and sessions, reset daily via a scheduled job, with a visible "You're viewing a demo — data resets daily" banner. This — not auth — is the actual fix for portfolio exposure (see Decisions Log → Portfolio).
+**Goal:** The demo team's players and Usual Schedule are already seeded as of `feature-phase-1-spec.md` (Requirement 1) — this feature adds what wasn't buildable that early: a daily reset job, at least one fake `Session` with RSVPs (Sessions didn't exist until Phase 3), and a visible "You're viewing a demo — data resets daily" banner. This — not auth — is the actual fix for portfolio exposure (see Decisions Log → Portfolio).
 
 **Acceptance criteria:**
-- `/team/demo` seed data is entirely separate from the real team's rows — resetting it must never be able to touch the real team's data (guard the reset job's scope explicitly, e.g. by `teamId`/`slug`, not "all teams")
+- `/team/demo` data is entirely separate from the real team's rows — resetting it must never be able to touch the real team's data (guard the reset job's scope explicitly, e.g. by `teamId`/`slug`, not "all teams")
 - Daily reset job re-seeds fake players, fake schedules, and at least one fake session with RSVPs
 - Banner renders only on `/team/demo`, not on the real team's route
 - The real team's slug/URL is never referenced anywhere in code comments, seed scripts, or docs destined for a public repo
