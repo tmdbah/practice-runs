@@ -442,7 +442,7 @@ model Player {
   teamId     String
   team       Team           @relation(fields: [teamId], references: [id])
   name       String
-  number     Int?           // jersey number, nullable — 0 is a valid value
+  number     Int?           // jersey number, nullable — 0 is a valid value — live from Phase 1
   defaults   DayDefault[]
   overrides  DateOverride[]
 }
@@ -461,7 +461,7 @@ model DayDefault {
   status     Status   @default(UNAVAILABLE)
   fromTime   String?  // "18:00", only set when status = SPECIFIC
   toTime     String?
-  note       String?
+  note       String?  // e.g. "church," "work until 4:30" — live from Phase 1
 
   @@unique([playerId, dayOfWeek])
 }
@@ -474,7 +474,7 @@ model DateOverride {
   status     Status
   fromTime   String?
   toTime     String?
-  note       String?
+  note       String?  // e.g. "church," "work until 4:30" — live from Phase 2
 
   @@unique([playerId, date])
 }
@@ -614,7 +614,7 @@ model Rsvp {
     <div class="rail"><div class="dot">4</div><div class="stem"></div></div>
     <div class="content">
       <h3>Polish</h3>
-      <p>First-visit identity persistence, jersey numbers, notes, add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
+      <p>First-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
     </div>
   </div>
   <div class="phase-row">
