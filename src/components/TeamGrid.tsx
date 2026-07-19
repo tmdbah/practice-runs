@@ -1,6 +1,7 @@
 "use client";
 
 import type { JSX } from "react";
+import Image from "next/image";
 import { useIdentity } from "@/hooks/use-identity";
 import { NamePicker } from "@/components/NamePicker";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
@@ -15,7 +16,7 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
 
   // Avoid flash of picker on returning visitors
   if (!isLoaded) {
-    return <div className="min-h-screen bg-neutral-950" />;
+    return <div className="min-h-screen bg-bg" />;
   }
 
   if (!playerId) {
@@ -23,8 +24,24 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white px-3 py-4">
-      <h1 className="text-lg font-bold mb-4">{data.team.name}</h1>
+    <div className="min-h-screen bg-bg text-text px-3 py-4">
+      <header className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-surface border border-border">
+        <Image
+          src="/UK_logo.PNG"
+          alt=""
+          width={28}
+          height={28}
+          aria-hidden="true"
+        />
+        <div>
+          <div className="text-sm font-bold leading-tight">
+            {data.team.name}
+          </div>
+          <div className="text-[10px] uppercase tracking-wide text-text-mute leading-tight">
+            Grid
+          </div>
+        </div>
+      </header>
       <AvailabilityGrid data={data} currentPlayerId={playerId} />
     </div>
   );

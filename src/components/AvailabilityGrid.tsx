@@ -106,13 +106,13 @@ export function AvailabilityGrid({
           <thead>
             <tr>
               {/* Name column header */}
-              <th className="text-left py-2 pr-2 text-xs text-neutral-500 font-medium w-24 min-w-[6rem]">
+              <th className="text-left py-2 pr-2 text-xs text-text-mute font-medium w-24 min-w-[6rem]">
                 Player
               </th>
               {DAY_ORDER.map((day, i) => (
                 <th
                   key={day}
-                  className="text-center py-2 text-xs text-neutral-500 font-medium w-8"
+                  className="text-center py-2 text-xs text-text-mute font-medium w-8"
                 >
                   {DAY_LABELS[i]}
                 </th>
@@ -128,17 +128,17 @@ export function AvailabilityGrid({
                     <span
                       className={[
                         "text-sm truncate max-w-[6rem] block",
-                        isYou ? "text-white font-semibold" : "text-neutral-300",
+                        isYou ? "text-text font-semibold" : "text-text-dim",
                       ].join(" ")}
                     >
                       {player.number !== null && (
-                        <span className="text-neutral-500 text-xs mr-1">
+                        <span className="text-text-mute text-xs mr-1">
                           #{player.number}
                         </span>
                       )}
                       {player.name}
                       {isYou && (
-                        <span className="ml-1 text-teal-400 text-xs">
+                        <span className="ml-1 text-accent text-xs">
                           (you)
                         </span>
                       )}
@@ -155,7 +155,7 @@ export function AvailabilityGrid({
                             onClick={() => openDrawer(player.id, day)}
                           />
                           {cellError === errKey && (
-                            <span className="absolute -bottom-3 left-0 right-0 text-center text-[10px] text-red-400">
+                            <span className="absolute -bottom-3 left-0 right-0 text-center text-[10px] text-danger">
                               !
                             </span>
                           )}

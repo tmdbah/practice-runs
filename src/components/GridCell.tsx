@@ -16,16 +16,16 @@ export function GridCell({ entry, onClick }: GridCellProps): JSX.Element {
       type="button"
       onClick={onClick}
       className={[
-        "relative w-full aspect-square rounded-md flex items-center justify-center transition-colors active:scale-95",
+        "relative w-full aspect-square rounded-md flex items-center justify-center transition-colors active:scale-95 border",
         isAvailable
-          ? "bg-teal-500 hover:bg-teal-400"
-          : "bg-neutral-800 hover:bg-neutral-700",
+          ? "bg-accent border-accent hover:bg-accent-dim"
+          : "bg-surface-2 border-border-strong hover:border-accent",
       ].join(" ")}
       aria-label={`Status: ${entry.status}`}
     >
       {entry.note && (
         <span
-          className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400"
+          className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-gold"
           aria-hidden="true"
         />
       )}

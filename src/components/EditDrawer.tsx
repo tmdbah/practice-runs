@@ -5,7 +5,13 @@ import type { JSX } from "react";
 import type { ScheduleEntry } from "@/types/api";
 import type { Status } from "@/generated/prisma/enums";
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const STATUS_LABELS: Record<Status, string> = {
+  ANYTIME: "Anytime",
+  SPECIFIC: "Specific hours",
+  UNAVAILABLE: "Unavailable",
+};
 
 interface EditDrawerProps {
   playerName: string;
@@ -55,13 +61,16 @@ export function EditDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`Edit ${playerName} – ${DAY_NAMES[dayOfWeek]}`}
-        className="fixed bottom-0 left-0 right-0 z-50 bg-neutral-900 rounded-t-2xl px-4 pt-4 pb-8 safe-bottom"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border rounded-t-2xl px-4 pt-4 pb-8 safe-bottom"
       >
         {/* Handle */}
-        <div className="w-10 h-1 rounded-full bg-neutral-700 mx-auto mb-4" />
+        <div className="w-10 h-1 rounded-full bg-border-strong mx-auto mb-4" />
 
-        <h2 className="text-base font-semibold text-white mb-4">
-          {playerName} &mdash; {DAY_NAMES[dayOfWeek]}
+        <p className="text-[10px] uppercase tracking-wide text-text-mute mb-1">
+          Availability
+        </p>
+        <h2 className="text-base font-semibold text-text mb-4">
+          {DAY_NAMES[dayOfWeek]} &middot; {playerName}
         </h2>
 
         {/* Status options */}
@@ -70,10 +79,10 @@ export function EditDrawer({
             <label
               key={s}
               className={[
-                "flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors",
+                "flex items-center justify-between gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors border",
                 status === s
-                  ? "bg-teal-600 text-white"
-                  : "bg-neutral-800 text-neutral-200 hover:bg-neutral-700",
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-border text-text-dim hover:border-border-strong",
               ].join(" ")}
             >
               <input
@@ -84,13 +93,13 @@ export function EditDrawer({
                 onChange={() => setStatus(s)}
                 className="sr-only"
               />
-              <span className="font-medium text-sm capitalize">
-                {s === "ANYTIME"
-                  ? "Anytime"
-                  : s === "SPECIFIC"
-                    ? "Specific hours"
-                    : "Unavailable"}
-              </span>
+              <span className="font-medium text-sm">{STATUS_LABELS[s]}</span>
+              {status === s && (
+                <span
+                  className="w-2 h-2 rounded-full bg-accent shrink-0"
+                  aria-hidden="true"
+                />
+              )}
             </label>
           ))}
         </div>
@@ -99,23 +108,25 @@ export function EditDrawer({
         {status === "SPECIFIC" && (
           <div className="flex gap-3 mb-4">
             <div className="flex-1">
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-[10px] uppercase tracking-wide text-text-mute mb-1">
                 From
               </label>
               <input
                 type="time"
                 value={fromTime}
                 onChange={(e) => setFromTime(e.target.value)}
-                className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:outline-none focus:border-teal-500"
+                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent"
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs text-neutral-400 mb-1">To</label>
+              <label className="block text-[10px] uppercase tracking-wide text-text-mute mb-1">
+                To
+              </label>
               <input
                 type="time"
                 value={toTime}
                 onChange={(e) => setToTime(e.target.value)}
-                className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:outline-none focus:border-teal-500"
+                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -123,15 +134,15 @@ export function EditDrawer({
 
         {/* Note */}
         <div className="mb-6">
-          <label className="block text-xs text-neutral-400 mb-1">
-            Note <span className="text-neutral-600">(optional)</span>
+          <label className="block text-[10px] uppercase tracking-wide text-text-mute mb-1">
+            Note <span className="normal-case text-text-mute">(optional)</span>
           </label>
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="e.g. church, work until 4:30"
-            className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:outline-none focus:border-teal-500 placeholder:text-neutral-600"
+            className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent placeholder:text-text-mute"
           />
         </div>
 
@@ -139,7 +150,7 @@ export function EditDrawer({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-white font-semibold text-sm transition-colors"
+          className="w-full py-3 rounded-xl bg-accent hover:bg-accent-dim disabled:opacity-50 text-bg font-semibold text-sm transition-colors"
         >
           {saving ? "Saving…" : "Save"}
         </button>
