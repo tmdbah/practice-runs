@@ -288,7 +288,7 @@ export function AvailabilityGrid({
     <>
       {/* Mode toggle */}
       <div className="flex gap-1 mb-4 p-1 bg-surface rounded-xl border border-border w-fit">
-        {(["usual", "this-week"] as const).map((m) => (
+        {(["this-week", "usual"] as const).map((m) => (
           <button
             key={m}
             type="button"
