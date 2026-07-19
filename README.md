@@ -1,8 +1,8 @@
 # Practice Runs
 
-A mobile-first tool for a pickup basketball crew to set weekly availability and see when enough people overlap to actually get a run together.
+A mobile-first tool for a basketball team to set weekly availability and see when enough people overlap to actually get a run together.
 
-Built for the "Uncrowned Kings" pickup crew, who previously coordinated availability by hand in a group chat and a shared Google Sheet. The sheet proved the underlying idea — a weekly grid of who's free when — but broke down once granularity increased (per-day time ranges, notes, per-player overrides), especially on mobile. Practice Runs rebuilds that same logic as a small, purpose-built app, plus a real fix for planning one-off sessions (venue, cost split, headcount) that the sheet never covered.
+Built for the "Uncrowned Kings" team, who previously coordinated availability by hand in a group chat and a shared Google Sheet. The sheet proved the underlying idea — a weekly grid of who's free when — but broke down once granularity increased (per-day time ranges, notes, per-player overrides), especially on mobile. Practice Runs rebuilds that same logic as a small, purpose-built app, plus a real fix for planning one-off sessions (venue, cost split, headcount) that the sheet never covered.
 
 **Status:** Planning complete, Phase 1 (core availability grid) not yet started.
 

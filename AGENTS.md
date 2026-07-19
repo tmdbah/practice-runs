@@ -17,6 +17,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Read the following to get the full context of the project:
 
 - [@context/practiceRuns-ProjectOverview.md](context/practiceRuns-ProjectOverview.md) — full spec: data model, decisions log, routes, build phases
+- [@context/practiceRuns-Architecture.md](context/practiceRuns-Architecture.md) — system architecture: diagrams, request/data flow, architecture decision log
 - [@context/practiceRuns-ProjectPlan.html](context/practiceRuns-ProjectPlan.html) — visual brainstorm artifact, kept in lockstep with the overview
 - [@context/coding-standards.md](context/coding-standards.md)
 - [@context/ai-interaction.md](context/ai-interaction.md)
