@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { GridCell } from "@/components/GridCell";
 import { EditDrawer } from "@/components/EditDrawer";
-import { TeamWindowRow } from "@/components/TeamWindowRow";
+import { TeamWindowCard, type DayWindowEntry } from "@/components/TeamWindowCard";
 import type {
   TeamGridResponse,
   PlayerRow,
@@ -17,6 +17,15 @@ import type {
 // Mon–Sun display order (ISO-style): 1,2,3,4,5,6,0
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_LABELS_FULL = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 type GridMode = "usual" | "this-week";
 
@@ -372,23 +381,6 @@ export function AvailabilityGrid({
             </tr>
           </thead>
           <tbody>
-            {/* Team window row — only in This Week mode */}
-            {mode === "this-week" && (
-              <tr>
-                <td className="pr-2 py-1 text-[10px] text-text-mute align-middle">
-                  Window
-                </td>
-                {DAY_ORDER.map((day) => {
-                  const tw = getTeamWindow(day);
-                  return (
-                    <td key={day} className="py-1 px-0.5">
-                      <TeamWindowRow teamWindow={tw} />
-                    </td>
-                  );
-                })}
-              </tr>
-            )}
-
             {data.players.map((player) => {
               const isYou = player.id === currentPlayerId;
               return (
@@ -443,6 +435,18 @@ export function AvailabilityGrid({
           </tbody>
         </table>
       </div>
+
+      {mode === "this-week" && (
+        <TeamWindowCard
+          entries={DAY_ORDER.map(
+            (day, i): DayWindowEntry => ({
+              dayOfWeek: day,
+              label: DAY_LABELS_FULL[i],
+              teamWindow: getTeamWindow(day),
+            }),
+          )}
+        />
+      )}
 
       {activeEdit && activePlayer && activeEntry && (
         <EditDrawer

@@ -1,7 +1,7 @@
 # Practice Runs — Project Overview
 
 > **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps.
-> **Status:** Phase 1 (core availability grid) shipped. Phase 2 not started.
+> **Status:** Phases 1–2 (core availability grid + This Week overrides/team window) shipped. Phase 3 not started.
 > **Version:** V1 — MVP (recurring availability grid)
 
 This is the enriched source of truth for **Practice Runs**, superseding `practiceRuns-ProjectSpec.md` (discarded). Keep this file and [`practiceRuns-ProjectPlan.html`](practiceRuns-ProjectPlan.html) in lockstep as phases complete or decisions change.
@@ -218,7 +218,7 @@ model Rsvp {
 |---|---|
 | First visit — name picker | Pick your name from the roster once; remembered on this device |
 | Onboarding walkthrough (Phase 4) | Short, dismissible tour shown once on first visit after the name picker — spotlights the grid, a cell tap, the This Week/Usual toggle, and the team window readout. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
-| Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live team window per day |
+| Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live Team Window carousel card (defaults to best-availability day; arrows + swipe + dot indicators page through the rest) |
 | Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save |
 | Session proposal (Phase 3) | Venue + date + time slots, RSVP count vs. minPlayers, live cost/person now vs. at threshold, "I'm in" |
 
@@ -272,6 +272,7 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Portfolio | Separate demo team (`/team/demo`), not a login wall | Seeded fake data, reset daily; the real team's URL is simply never posted publicly |
 | Min players | Open question — kept as an editable per-session field | Team needs to agree on the real headcount threshold (8? 10?); varies by venue cost |
 | Onboarding | First-visit walkthrough, dismissible, `localStorage`-persisted (`hasSeenTour`) | Mirrors the identity mechanism — no accounts, no DB table; new players shouldn't need to ask the group chat what to do |
+| Team Window display | Single swipeable card (always-visible arrows + native touch swipe + tappable dot indicators), defaults to the best-availability day | Phase 2 shipped it as a row of tiny per-day boxes in the grid table; unreadable at mobile widths (the primary use case) and not interactive. A static single-best-day card (closer to the original mockup) was considered but rejected — it would hide the other 6 days' data the app already computes for free. Calculation (`computeWindowForDate`) is unchanged; this is a display-only change. See `feature-team-window-carousel-spec.md` |
 
 ---
 

@@ -27,7 +27,7 @@ Read the following to get the full context of the project:
 
 ## Project Overview
 
-Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built app. Status: Phase 1 (core availability grid) shipped, Phase 2 (This Week overrides + team window) not started.
+Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built app. Status: Phases 1–2 (core availability grid + This Week overrides/team window) shipped, Phase 3 not started.
 
 ---
 
@@ -106,8 +106,8 @@ npm run lint     # Run ESLint
 
 ## Current Status
 
-**V1 scope (Phases 1–2):** Core availability grid — Usual Schedule tap-to-edit, then This Week overrides plus the live team-window overlap calculation.
+**V1 scope (Phases 1–2):** Core availability grid — Usual Schedule tap-to-edit, then This Week overrides plus the live team-window overlap calculation. Complete.
 **Phase 1 — done:** Usual Schedule grid, tap-to-edit, identity picker, read/write APIs, shipped and merged to `main`.
-**Done when (V1 as a whole):** the grid alone beats the spreadsheet on friction, and This Week/Usual overrides plus per-day available-count and team window are all live.
-**Next up (Phase 2):** This Week overrides + team window — `DateOverride` writes, inherited-vs-overridden styling, live per-day overlap calculation.
-**After that (Phase 3):** Sessions & venues — propose a one-off session (rented gym/open gym/park), RSVP, live cost split and minimum-headcount check. Not fully blocked — INSZN is a usable first venue.
+**Phase 2 — done:** This Week overrides + team window — `DateOverride` writes, inherited-vs-overridden styling, live per-day overlap calculation, shipped and merged to `main`. The Team Window UI was subsequently reworked from a per-day grid row into a swipeable single-card carousel — see `context/features/feature-team-window-carousel-spec.md`; the calculation itself is unchanged.
+**Done (V1 as a whole):** the grid beats the spreadsheet on friction, and This Week/Usual overrides plus per-day available-count and team window are all live.
+**Next up (Phase 3):** Sessions & venues — propose a one-off session (rented gym/open gym/park), RSVP, live cost split and minimum-headcount check. Not fully blocked — INSZN is a usable first venue.
