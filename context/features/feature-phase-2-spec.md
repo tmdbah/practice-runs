@@ -110,6 +110,8 @@ Body: { date: string; status: Status; fromTime?: string; toTime?: string; note?:
 
 ### 5. Team window UI
 
+> **Superseded:** the table-row layout built here was replaced by a swipeable single-card carousel — see [feature-team-window-carousel-spec.md](feature-team-window-carousel-spec.md). The calculation this section describes (`computeWindowForDate`, available count, "No common time") is unchanged; only the display below is historical.
+
 **Goal:** Surface the per-day available count and team window on the grid (e.g. "Fri window: 7–9pm (3 free)" per the Plan doc's mockup).
 
 **Acceptance criteria:**

@@ -25,3 +25,13 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+
+/* Hides the scrollbar on horizontally-scrollable carousels (e.g. TeamWindowCard)
+   while keeping native touch-scroll/swipe behavior intact. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

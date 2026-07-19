@@ -202,7 +202,7 @@
   <a href="#lessons">Lessons from the sheet</a>
   <div class="status">
     <strong>Current phase</strong>
-    Phase 1 shipped. Phase 2 not started.
+    Phases 1&ndash;2 shipped. Phase 3 not started.
   </div>
 </nav>
 
@@ -286,6 +286,13 @@
       <div class="body">
         <strong>First-visit walkthrough, dismissible, persisted the same way as identity</strong>
         <p>A short tour shown once, right after the name picker, that spotlights the core loop &mdash; tap a cell, the This Week/Usual toggle, the team window readout &mdash; so a brand-new player doesn't have to ask the group chat what to do. Dismissal is a <code>hasSeenTour</code> flag in <code>localStorage</code>, mirroring how identity is already stored: no accounts, no DB table, no server round-trip. Scoped to Phase 4 (Polish) since it needs the real grid/toggle/team-window UI to walk through &mdash; see Build phases.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="tag">Team window</div>
+      <div class="body">
+        <strong>Single swipeable card, not a per-day row in the grid</strong>
+        <p>Phase 2 shipped the team window as a row of tiny per-day boxes inside the grid table &mdash; it worked, but was hard to read at mobile widths (the primary use case) and wasn't interactive. Replaced with a standalone card &mdash; closer to this doc's original mockup below &mdash; that defaults to the best-availability day and pages through the rest via always-visible arrow buttons, native touch swipe, and tappable dot indicators. A static single-best-day card (the mockup taken literally) was considered and rejected: it would hide the other 6 days' data the app already computes for free. The underlying calculation is unchanged &mdash; this is a display-only change.</p>
       </div>
     </div>
   </div>
