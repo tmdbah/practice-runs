@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature
+# Current Feature: Phase 2 — This Week Overrides + Team Window
 
 ## Merge Target
 
@@ -10,15 +10,28 @@ main
 
 <!-- Not Started|In Progress|Completed -->
 
-Not Started
+In Progress
 
 ## Goals
 
 <!-- Goals & requirements -->
 
+- Add `DateOverride` Prisma model and run migration
+- Extend `GET /api/teams/[slug]` to return effective view (override ?? default per player per day) and per-day team window calculation
+- Add This Week / Usual toggle to the grid; cells render inherited (faded) vs overridden (dot marker) in This Week mode; Usual mode behavior unchanged
+- Add `PATCH /api/teams/[slug]/players/[playerId]/override` write endpoint; same optimistic-save pattern as Phase 1's default endpoint
+- Surface per-day available count and team window in the grid UI; recalculates after any optimistic edit; shows "No common time" when window is invalid
+
 ## Notes
 
 <!-- Any extra notes -->
+
+- **Hard boundary:** do not build `Venue`, `Session`, `Rsvp` models or any session/RSVP UI (Phase 3), and no auth/demo team (Phase 4/5)
+- Effective resolution rule: missing `DateOverride` row means "use `DayDefault`" — compute fallback on read, never backfill/store it
+- `isOverridden` must be `true` only when a real `DateOverride` row exists — never inferred
+- Team window: for each of the next 7 calendar dates, take players not `UNAVAILABLE`; treat `ANYTIME` as `00:00–23:59`; window = [MAX(fromTimes), MIN(toTimes)]; invalid if max ≥ min → return null
+- `DateOverride.note` persists independently of `DayDefault.note` — editing This Week's note must not change Usual Schedule's note
+- Toggle state does not need to persist across reloads
 
 ## History
 
