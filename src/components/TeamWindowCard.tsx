@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { TeamWindow } from "@/types/api";
 
@@ -52,17 +52,27 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null);
   const suppressScrollSync = useRef(false);
 
-  function scrollToIndex(target: number): void {
+  function scrollToIndex(target: number, behavior: ScrollBehavior = "smooth"): void {
     const container = scrollRef.current;
     if (!container) return;
     const clamped = Math.max(0, Math.min(entries.length - 1, target));
     const child = container.children[clamped] as HTMLElement | undefined;
     if (child) {
       suppressScrollSync.current = true;
-      child.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      child.scrollIntoView({ behavior, inline: "center", block: "nearest" });
     }
     setIndex(clamped);
   }
+
+  // The default index is computed from data (best-availability day), but
+  // that alone never moves the actual scroll position — without this the
+  // carousel visually opens on day 0 while the dot indicator shows the
+  // real default, looking desynced. Jump there instantly, pre-paint, so
+  // there's no visible flash of the wrong day.
+  useLayoutEffect(() => {
+    if (index !== 0) scrollToIndex(index, "instant");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep the active dot/arrows in sync when the user swipes manually,
   // without fighting our own programmatic scrollIntoView calls.
@@ -102,20 +112,20 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
 
   return (
     <div className="mb-4">
-      <div className="relative rounded-xl bg-surface border border-border">
+      <div className="flex items-center gap-1 rounded-xl bg-surface border border-border pl-1 pr-2">
         <button
           type="button"
           onClick={() => scrollToIndex(index - 1)}
           disabled={index === 0}
           aria-label="Previous day"
-          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
         >
           ‹
         </button>
 
         <div
           ref={scrollRef}
-          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-7"
+          className="flex-1 min-w-0 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
         >
           {entries.map((entry, i) => {
             const w = entry.teamWindow;
@@ -124,7 +134,7 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
             return (
               <div key={entry.dayOfWeek} className="w-full shrink-0 snap-center py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-text-dim">
+                  <span className="text-xs font-semibold text-text-dim whitespace-nowrap">
                     Team window
                   </span>
                   {availableCount > 0 && w?.window ? (
@@ -152,7 +162,7 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
           onClick={() => scrollToIndex(index + 1)}
           disabled={index === entries.length - 1}
           aria-label="Next day"
-          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
         >
           ›
         </button>
