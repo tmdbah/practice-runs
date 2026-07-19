@@ -14,11 +14,14 @@ const mockFindFirst = vi.mocked(prisma.player.findFirst);
 const mockUpsert = vi.mocked(prisma.dayDefault.upsert);
 
 function makeRequest(body: unknown): Request {
-  return new Request("http://localhost/api/teams/demo-team/players/p1/default", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  return new Request(
+    "http://localhost/api/teams/demo-team/players/p1/default",
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 function makeParams(slug = "demo-team", playerId = "p1") {
@@ -38,7 +41,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
 
     const res = await PATCH(
       makeRequest({ dayOfWeek: 1, status: "ANYTIME" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(404);
@@ -49,7 +52,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
   it("should return 400 for dayOfWeek below 0", async () => {
     const res = await PATCH(
       makeRequest({ dayOfWeek: -1, status: "ANYTIME" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(400);
@@ -60,7 +63,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
   it("should return 400 for dayOfWeek above 6", async () => {
     const res = await PATCH(
       makeRequest({ dayOfWeek: 7, status: "ANYTIME" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(400);
@@ -69,7 +72,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
   it("should return 400 for non-integer dayOfWeek", async () => {
     const res = await PATCH(
       makeRequest({ dayOfWeek: 1.5, status: "ANYTIME" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(400);
@@ -78,7 +81,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
   it("should return 400 for invalid status value", async () => {
     const res = await PATCH(
       makeRequest({ dayOfWeek: 1, status: "FREE" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(400);
@@ -89,7 +92,7 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
   it("should return 200 and upsert for a valid ANYTIME request", async () => {
     const res = await PATCH(
       makeRequest({ dayOfWeek: 1, status: "ANYTIME" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(res.status).toBe(200);
@@ -98,69 +101,79 @@ describe("PATCH /api/teams/[slug]/players/[playerId]/default", () => {
 
   it("should persist fromTime and toTime when status is SPECIFIC", async () => {
     await PATCH(
-      makeRequest({ dayOfWeek: 3, status: "SPECIFIC", fromTime: "18:00", toTime: "21:00" }),
-      makeParams()
+      makeRequest({
+        dayOfWeek: 3,
+        status: "SPECIFIC",
+        fromTime: "18:00",
+        toTime: "21:00",
+      }),
+      makeParams(),
     );
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ fromTime: "18:00", toTime: "21:00" }),
         create: expect.objectContaining({ fromTime: "18:00", toTime: "21:00" }),
-      })
+      }),
     );
   });
 
   it("should clear fromTime and toTime when status is ANYTIME", async () => {
     await PATCH(
-      makeRequest({ dayOfWeek: 1, status: "ANYTIME", fromTime: "18:00", toTime: "21:00" }),
-      makeParams()
+      makeRequest({
+        dayOfWeek: 1,
+        status: "ANYTIME",
+        fromTime: "18:00",
+        toTime: "21:00",
+      }),
+      makeParams(),
     );
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ fromTime: null, toTime: null }),
         create: expect.objectContaining({ fromTime: null, toTime: null }),
-      })
+      }),
     );
   });
 
   it("should clear fromTime and toTime when status is UNAVAILABLE", async () => {
     await PATCH(
       makeRequest({ dayOfWeek: 1, status: "UNAVAILABLE", fromTime: "18:00" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ fromTime: null, toTime: null }),
-      })
+      }),
     );
   });
 
   it("should persist note regardless of status", async () => {
     await PATCH(
       makeRequest({ dayOfWeek: 2, status: "UNAVAILABLE", note: "church" }),
-      makeParams()
+      makeParams(),
     );
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({ note: "church" }),
         create: expect.objectContaining({ note: "church" }),
-      })
+      }),
     );
   });
 
   it("should upsert with the correct playerId and dayOfWeek composite key", async () => {
     await PATCH(
       makeRequest({ dayOfWeek: 4, status: "ANYTIME" }),
-      makeParams("demo-team", "player-xyz")
+      makeParams("demo-team", "player-xyz"),
     );
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { playerId_dayOfWeek: { playerId: "player-xyz", dayOfWeek: 4 } },
-      })
+      }),
     );
   });
 });

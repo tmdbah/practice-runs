@@ -60,7 +60,9 @@ describe("getTeamGrid", () => {
       id: "team-1",
       slug: "demo-team",
       name: "Demo Squad",
-      players: [makePlayer({ id: "p1", name: "Darius", number: 5, defaults: [] })],
+      players: [
+        makePlayer({ id: "p1", name: "Darius", number: 5, defaults: [] }),
+      ],
     } as never);
 
     const result = await getTeamGrid("demo-team");
@@ -96,7 +98,12 @@ describe("getTeamGrid", () => {
           id: "p1",
           defaults: [
             { dayOfWeek: 1, status: "ANYTIME" },
-            { dayOfWeek: 5, status: "SPECIFIC", fromTime: "18:00", toTime: "21:00" },
+            {
+              dayOfWeek: 5,
+              status: "SPECIFIC",
+              fromTime: "18:00",
+              toTime: "21:00",
+            },
           ],
         }),
       ],
