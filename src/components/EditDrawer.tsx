@@ -115,7 +115,7 @@ export function EditDrawer({
                 type="time"
                 value={fromTime}
                 onChange={(e) => setFromTime(e.target.value)}
-                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent"
+                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent [color-scheme:dark]"
               />
             </div>
             <div className="flex-1">
@@ -126,7 +126,7 @@ export function EditDrawer({
                 type="time"
                 value={toTime}
                 onChange={(e) => setToTime(e.target.value)}
-                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent"
+                className="w-full bg-surface-2 text-text rounded-lg px-3 py-2 text-sm border border-border focus:outline-none focus:border-accent [color-scheme:dark]"
               />
             </div>
           </div>

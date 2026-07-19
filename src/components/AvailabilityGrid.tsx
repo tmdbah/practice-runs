@@ -11,6 +11,7 @@ import type {
   ScheduleEntry,
   DayCell,
   TeamWindow,
+  Status,
 } from "@/types/api";
 
 // Mon–Sun display order (ISO-style): 1,2,3,4,5,6,0
@@ -34,7 +35,7 @@ export function AvailabilityGrid({
   data,
   currentPlayerId,
 }: AvailabilityGridProps): JSX.Element {
-  const [mode, setMode] = useState<GridMode>("usual");
+  const [mode, setMode] = useState<GridMode>("this-week");
 
   // Optimistic overrides for Usual mode; keyed `${playerId}:${dayOfWeek}`
   const [usualOverrides, setUsualOverrides] = useState<
@@ -79,7 +80,28 @@ export function AvailabilityGrid({
         isOverridden: false,
       } as DayCell);
     const key = `${player.id}:${base.date}`;
-    return weekOverrides.get(key) ?? base;
+    const weekOverride = weekOverrides.get(key);
+    if (weekOverride) return weekOverride;
+
+    // No explicit This Week override — this cell inherits the Usual default.
+    // If Usual was optimistically edited client-side, reflect that live
+    // instead of the stale server snapshot baked into `base`.
+    if (!base.isOverridden) {
+      const usualEntry = usualOverrides.get(`${player.id}:${dayOfWeek}`);
+      if (usualEntry) {
+        return {
+          date: base.date,
+          dayOfWeek,
+          effectiveStatus: usualEntry.status,
+          fromTime: usualEntry.fromTime,
+          toTime: usualEntry.toTime,
+          note: usualEntry.note,
+          isOverridden: false,
+        };
+      }
+    }
+
+    return base;
   }
 
   function getTeamWindow(dayOfWeek: number): TeamWindow | undefined {
@@ -103,24 +125,33 @@ export function AvailabilityGrid({
     setActiveEdit(null);
   }
 
-  /** Recompute team window for a given date after an optimistic cell edit. */
-  function recomputeWindow(isoDate: string, allPlayers: PlayerRow[]): void {
-    const base = data.teamWindows.find((w) => w.date === isoDate);
-    if (!base) return;
-
-    const cells = allPlayers
-      .map((p) => {
-        const cell = p.thisWeek.find((c) => c.date === isoDate);
-        if (!cell) return null;
-        return weekOverrides.get(`${p.id}:${isoDate}`) ?? cell;
-      })
-      .filter((c): c is DayCell => c !== null);
+  /**
+   * Compute the team window for a date, substituting `editedPlayerId`'s cell
+   * with `editedCell` (the just-saved value, not yet reflected in state) and
+   * resolving every other player via `getWeekCell` — which already applies
+   * the Usual-inherits-into-This-Week merge above. Used to keep the window
+   * live for edits made from either the Usual or This Week screen.
+   */
+  function computeWindowForDate(
+    isoDate: string,
+    dayOfWeek: number,
+    editedPlayerId: string,
+    editedCell: { status: Status; fromTime: string | null; toTime: string | null },
+  ): TeamWindow {
+    const cells = data.players.map((p) => {
+      if (p.id === editedPlayerId) return editedCell;
+      const c = getWeekCell(p, dayOfWeek);
+      return {
+        status: c.effectiveStatus,
+        fromTime: c.fromTime,
+        toTime: c.toTime,
+      };
+    });
 
     const available = cells
       .map((c) => {
-        if (c.effectiveStatus === "UNAVAILABLE") return null;
-        if (c.effectiveStatus === "ANYTIME")
-          return { from: "00:00", to: "23:59" };
+        if (c.status === "UNAVAILABLE") return null;
+        if (c.status === "ANYTIME") return { from: "00:00", to: "23:59" };
         if (c.fromTime && c.toTime) return { from: c.fromTime, to: c.toTime };
         return { from: "00:00", to: "23:59" };
       })
@@ -141,13 +172,7 @@ export function AvailabilityGrid({
         window = { from: latestFrom, to: earliestTo };
     }
 
-    setWindowOverrides((prev) =>
-      new Map(prev).set(isoDate, {
-        ...base,
-        availableCount,
-        window,
-      }),
-    );
+    return { date: isoDate, dayOfWeek, availableCount, window };
   }
 
   async function handleSave(entry: ScheduleEntry): Promise<void> {
@@ -163,6 +188,29 @@ export function AvailabilityGrid({
 
       setUsualOverrides((prev) => new Map(prev).set(key, entry));
       closeDrawer();
+
+      // If this day isn't explicitly overridden in This Week, it inherits
+      // from Usual — recompute that date's team window to match live.
+      const teamWindowBase = data.teamWindows.find(
+        (w) => w.dayOfWeek === dayOfWeek,
+      );
+      const thisWeekCell = data.players
+        .find((p) => p.id === playerId)
+        ?.thisWeek.find((c) => c.dayOfWeek === dayOfWeek);
+      if (
+        teamWindowBase &&
+        thisWeekCell &&
+        !weekOverrides.has(`${playerId}:${teamWindowBase.date}`) &&
+        !thisWeekCell.isOverridden
+      ) {
+        const tw = computeWindowForDate(
+          teamWindowBase.date,
+          dayOfWeek,
+          playerId,
+          { status: entry.status, fromTime: entry.fromTime, toTime: entry.toTime },
+        );
+        setWindowOverrides((prev) => new Map(prev).set(teamWindowBase.date, tw));
+      }
 
       const res = await fetch(
         `/api/teams/${data.team.slug}/players/${playerId}/default`,
@@ -180,6 +228,13 @@ export function AvailabilityGrid({
           else next.delete(key);
           return next;
         });
+        if (teamWindowBase) {
+          setWindowOverrides((prev) => {
+            const next = new Map(prev);
+            next.delete(teamWindowBase.date);
+            return next;
+          });
+        }
         setCellError(`${playerId}:${dayOfWeek}`);
       }
     } else {
@@ -204,18 +259,12 @@ export function AvailabilityGrid({
       setWeekOverrides((prev) => new Map(prev).set(key, optimisticCell));
       closeDrawer();
 
-      // Recompute team window optimistically with the updated cell
-      // Build a temporary merged player list for the calculation
-      const mergedPlayers = data.players.map((p) => {
-        if (p.id !== playerId) return p;
-        return {
-          ...p,
-          thisWeek: p.thisWeek.map((c) =>
-            c.date === isoDate ? optimisticCell : c,
-          ),
-        };
+      const tw = computeWindowForDate(isoDate, baseCell.dayOfWeek, playerId, {
+        status: entry.status,
+        fromTime: entry.fromTime,
+        toTime: entry.toTime,
       });
-      recomputeWindow(isoDate, mergedPlayers);
+      setWindowOverrides((prev) => new Map(prev).set(isoDate, tw));
 
       const res = await fetch(
         `/api/teams/${data.team.slug}/players/${playerId}/override`,
@@ -306,16 +355,16 @@ export function AvailabilityGrid({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[320px] border-separate border-spacing-0">
+        <table className="w-full min-w-[320px] border-separate border-spacing-0 table-fixed">
           <thead>
             <tr>
-              <th className="text-left py-2 pr-2 text-xs text-text-mute font-medium w-24 min-w-[6rem]">
+              <th className="text-left py-2 pr-2 text-xs text-text-mute font-medium w-24">
                 Player
               </th>
               {DAY_ORDER.map((day, i) => (
                 <th
                   key={day}
-                  className="text-center py-2 text-xs text-text-mute font-medium w-8"
+                  className="text-center py-2 text-xs text-text-mute font-medium"
                 >
                   {DAY_LABELS[i]}
                 </th>
