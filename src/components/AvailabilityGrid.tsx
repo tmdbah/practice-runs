@@ -26,6 +26,7 @@ const DAY_LABELS_FULL = [
   "Saturday",
   "Sunday",
 ];
+const DAY_LABELS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 type GridMode = "usual" | "this-week";
 
@@ -363,6 +364,19 @@ export function AvailabilityGrid({
         ))}
       </div>
 
+      {mode === "this-week" && (
+        <TeamWindowCard
+          entries={DAY_ORDER.map(
+            (day, i): DayWindowEntry => ({
+              dayOfWeek: day,
+              label: DAY_LABELS_FULL[i],
+              shortLabel: DAY_LABELS_SHORT[i],
+              teamWindow: getTeamWindow(day),
+            }),
+          )}
+        />
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full min-w-[320px] border-separate border-spacing-0 table-fixed">
           <thead>
@@ -435,18 +449,6 @@ export function AvailabilityGrid({
           </tbody>
         </table>
       </div>
-
-      {mode === "this-week" && (
-        <TeamWindowCard
-          entries={DAY_ORDER.map(
-            (day, i): DayWindowEntry => ({
-              dayOfWeek: day,
-              label: DAY_LABELS_FULL[i],
-              teamWindow: getTeamWindow(day),
-            }),
-          )}
-        />
-      )}
 
       {activeEdit && activePlayer && activeEntry && (
         <EditDrawer
