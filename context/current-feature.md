@@ -1,36 +1,37 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature
+# Current Feature: Phase 1 — Core Availability Grid
 
-Neon PostgreSQL + Prisma Setup
+## Merge Target
+
+main
 
 ## Status
 
 <!-- Not Started|In Progress|Completed -->
 
-Completed
+In Progress
 
 ## Goals
 
 <!-- Goals & requirements -->
 
-- Set up Prisma ORM (v7) against Neon PostgreSQL (serverless)
-- Scoped to Phase 1 data only: `Team`, `Player`, `DayDefault` (`DateOverride` may be included now since Phase 2 follows immediately, but no writes to it happen until Phase 2)
-- Do NOT include NextAuth models (Account/Session/VerificationToken) — auth is gated on the Phase 5 trigger, not met yet (see AGENTS.md Do-NOT list)
-- Do NOT include Venue/Session/Rsvp — that's Phase 3, deliberately not wired early (see AGENTS.md Do-NOT list)
-- Add appropriate indexes and cascade deletes
-- Always use `prisma migrate dev` to create migrations — never `db push`
-- Two Neon branches: a development branch (`DATABASE_URL`) and a production branch — migrations only, no direct pushes to either unless explicitly told otherwise
+- **1. Prisma schema + Neon connection** — `Team`, `Player`, `DayDefault`, and `Status` enum exist as real tables in Neon, migrated via Prisma; seed script creates demo team with fake players and 7 `DayDefault` rows per player (all `UNAVAILABLE`); no real team data committed
+- **2. Read API** — `GET /api/teams/[slug]` returns roster + 7-day Usual Schedule per player; 404 on unknown slug; always returns exactly 7 entries per player (missing rows → `UNAVAILABLE`)
+- **3. Identity** — first visit shows name picker from roster; `playerId` stored in `localStorage` keyed by slug; returning visitor skips picker; no auth, no server-side session
+- **4. Home grid UI** — `/team/[slug]` renders 7-column (Mon–Sun) grid, one row per player; `ANYTIME`/`SPECIFIC` = teal fill, `UNAVAILABLE` = neutral; signed-in player's row is visually distinguished; jersey numbers shown; note indicator on cell; mobile-first (iPhone SE 375px minimum)
+- **5. Tap-to-edit** — tapping a cell opens a bottom-sheet drawer; options: Anytime / Specific hours (shows time inputs) / Unavailable; optional note field; `PATCH /api/teams/[slug]/players/[playerId]/default`; optimistic save (update cell immediately, revert + inline error on failure); any player can edit any row (trust-based)
 
 ## Notes
 
 <!-- Any extra notes -->
 
-- Full requirements: `@context/features/database-spec.md`
-- database-spec.md also asks for NextAuth models and the full data model (incl. Phase 3 tables) — user confirmed (2026-07-19) to scope this feature to Phase 1 only per AGENTS.md, deferring both to their respective phases
-- Prisma 7 has breaking changes vs. earlier versions — read the upgrade guide before writing schema/config: https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
-- User has an existing free-tier Neon account; connection strings (pooled `DATABASE_URL` + direct `DIRECT_URL`) still need to be added to `.env`
-- **Confirmed (2026-07-19) via Neon API:** `.env` points at the Neon `development` branch (`br-fancy-cloud-awzo0bbh`, compute `ep-ancient-unit-awcp927u`), not `production` (`br-cold-sound-aw4ltgma`, compute `ep-weathered-rice-awm0hsm7`). The initial migration (`20260719042059_init`) is applied there with no drift (`prisma migrate status` → up to date). `db push` was never run — only `prisma migrate dev`, which is the only schema-sync path `prisma.config.ts` supports (v7 dropped `directUrl`, so there's no accidental push route wired in). This is how dev/production stay in sync: migrations generated on `development` get replayed on `production` via `prisma migrate deploy`, never pushed directly.
+- **Hard boundary — do NOT build in Phase 1:** `DateOverride` model, This Week toggle, team window/overlap calc, `Venue`/`Session`/`Rsvp`, auth, demo team's daily reset job or "viewing demo" banner
+- Schema already exists from the prior Prisma setup feature — requirement 1 mainly needs the seed script
+- `fromTime`/`toTime` only persisted when `status = SPECIFIC`; switching to `ANYTIME`/`UNAVAILABLE` must clear them; `note` persists regardless of status
+- Save behavior: no confirmation modals, no toasts — cell updates optimistically, reverts inline on failure
+- Full spec: `context/features/feature-phase-1-spec.md`
+- Real `uncrowned-kings` team + real roster are **out of scope for Goal 1** — the seed script here is demo-only (fake players, safe to commit). When the real team is added later, use a local-only script reading from a git-ignored file (e.g. `roster.local.json`), not a hardcoded/committed seed — keeps real names out of git history even if the repo is ever made public, consistent with the "real URL never posted publicly" portfolio-safety model in the architecture doc
 
 ## History
 
