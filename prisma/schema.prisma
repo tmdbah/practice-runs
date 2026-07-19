@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Scope: Phase 1-2 data only (Team, Player, DayDefault, DateOverride).
+// Do NOT add NextAuth models or Venue/Session/Rsvp here - those are gated
+// on Phase 5's auth trigger and Phase 3 respectively. See AGENTS.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Status {
+  ANYTIME
+  SPECIFIC
+  UNAVAILABLE
+}
+
+model Team {
+  id      String   @id @default(cuid())
+  slug    String   @unique // shareable URL, e.g. "uncrowned-kings"
+  name    String
+  players Player[]
+}
+
+model Player {
+  id        String         @id @default(cuid())
+  teamId    String
+  team      Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name      String
+  number    Int? // jersey number, nullable - 0 is a valid value
+  defaults  DayDefault[]
+  overrides DateOverride[]
+
+  @@index([teamId])
+}
+
+model DayDefault {
+  id        String   @id @default(cuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  dayOfWeek Int // 0=Sun ... 6=Sat
+  status    Status   @default(UNAVAILABLE)
+  fromTime  String? // "18:00", only set when status = SPECIFIC
+  toTime    String?
+  note      String? // e.g. "church," "work until 4:30"
+
+  @@unique([playerId, dayOfWeek])
+}
+
+model DateOverride {
+  id       String   @id @default(cuid())
+  playerId String
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  date     DateTime // specific calendar date, not a day-of-week
+  status   Status
+  fromTime String?
+  toTime   String?
+  note     String?
+
+  @@unique([playerId, date])
+}
