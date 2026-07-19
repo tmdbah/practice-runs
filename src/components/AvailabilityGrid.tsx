@@ -26,20 +26,23 @@ export function AvailabilityGrid({
 }: AvailabilityGridProps): JSX.Element {
   // Local overrides applied optimistically; keyed `${playerId}:${dayOfWeek}`
   const [overrides, setOverrides] = useState<Map<string, ScheduleEntry>>(
-    new Map()
+    new Map(),
   );
   const [cellError, setCellError] = useState<string | null>(null);
   const [activeEdit, setActiveEdit] = useState<DraftEdit | null>(null);
 
   function getEntry(player: PlayerRow, dayOfWeek: number): ScheduleEntry {
     const key = `${player.id}:${dayOfWeek}`;
-    return overrides.get(key) ?? player.schedule[dayOfWeek] ?? {
-      dayOfWeek,
-      status: "UNAVAILABLE",
-      fromTime: null,
-      toTime: null,
-      note: null,
-    };
+    return (
+      overrides.get(key) ??
+      player.schedule[dayOfWeek] ?? {
+        dayOfWeek,
+        status: "UNAVAILABLE",
+        fromTime: null,
+        toTime: null,
+        note: null,
+      }
+    );
   }
 
   function openDrawer(playerId: string, dayOfWeek: number): void {
@@ -55,7 +58,8 @@ export function AvailabilityGrid({
     if (!activeEdit) return;
     const { playerId, dayOfWeek } = activeEdit;
     const key = `${playerId}:${dayOfWeek}`;
-    const previous = overrides.get(key) ??
+    const previous =
+      overrides.get(key) ??
       data.players.find((p) => p.id === playerId)?.schedule[dayOfWeek];
 
     // Optimistic update
@@ -68,7 +72,7 @@ export function AvailabilityGrid({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(entry),
-      }
+      },
     );
 
     if (!res.ok) {
@@ -87,7 +91,7 @@ export function AvailabilityGrid({
   }
 
   const activePlayer = activeEdit
-    ? data.players.find((p) => p.id === activeEdit.playerId) ?? null
+    ? (data.players.find((p) => p.id === activeEdit.playerId) ?? null)
     : null;
 
   const activeEntry =
@@ -134,7 +138,9 @@ export function AvailabilityGrid({
                       )}
                       {player.name}
                       {isYou && (
-                        <span className="ml-1 text-teal-400 text-xs">(you)</span>
+                        <span className="ml-1 text-teal-400 text-xs">
+                          (you)
+                        </span>
                       )}
                     </span>
                   </td>

@@ -34,7 +34,7 @@ export function useIdentity(slug: string): {
       window.addEventListener("storage", handler);
       return () => window.removeEventListener("storage", handler);
     },
-    [slug]
+    [slug],
   );
 
   const getSnapshot = useCallback(() => readStorage(slug), [slug]);
@@ -42,7 +42,11 @@ export function useIdentity(slug: string): {
 
   // useSyncExternalStore: server snapshot = null (isLoaded=false),
   // client snapshot = localStorage value (isLoaded=true)
-  const playerId = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const playerId = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   // On the server getServerSnapshot returns null;
   // on the client getSnapshot runs synchronously so we're always "loaded".
@@ -54,7 +58,7 @@ export function useIdentity(slug: string): {
     localStorage.setItem(storageKey(slug), JSON.stringify(identity));
     // Trigger re-render by dispatching a storage event (same-tab)
     window.dispatchEvent(
-      new StorageEvent("storage", { key: storageKey(slug) })
+      new StorageEvent("storage", { key: storageKey(slug) }),
     );
   }
 

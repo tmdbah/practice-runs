@@ -88,8 +88,8 @@ export function EditDrawer({
                 {s === "ANYTIME"
                   ? "Anytime"
                   : s === "SPECIFIC"
-                  ? "Specific hours"
-                  : "Unavailable"}
+                    ? "Specific hours"
+                    : "Unavailable"}
               </span>
             </label>
           ))}
@@ -99,7 +99,9 @@ export function EditDrawer({
         {status === "SPECIFIC" && (
           <div className="flex gap-3 mb-4">
             <div className="flex-1">
-              <label className="block text-xs text-neutral-400 mb-1">From</label>
+              <label className="block text-xs text-neutral-400 mb-1">
+                From
+              </label>
               <input
                 type="time"
                 value={fromTime}

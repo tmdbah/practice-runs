@@ -7,12 +7,16 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<{ title: string }> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<{ title: string }> {
   const { slug } = await params;
   return { title: `${slug} – Practice Runs` };
 }
 
-export default async function TeamPage({ params }: PageProps): Promise<JSX.Element> {
+export default async function TeamPage({
+  params,
+}: PageProps): Promise<JSX.Element> {
   const { slug } = await params;
   const data = await getTeamGrid(slug);
 

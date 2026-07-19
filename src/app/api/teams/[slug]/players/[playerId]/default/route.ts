@@ -17,7 +17,7 @@ interface PatchBody {
 
 export async function PATCH(
   req: Request,
-  { params }: RouteParams
+  { params }: RouteParams,
 ): Promise<NextResponse<Record<string, never> | ApiError>> {
   const { slug, playerId } = await params;
 

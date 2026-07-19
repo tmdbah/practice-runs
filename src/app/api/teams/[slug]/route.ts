@@ -8,7 +8,7 @@ interface RouteParams {
 
 export async function GET(
   _req: Request,
-  { params }: RouteParams
+  { params }: RouteParams,
 ): Promise<NextResponse<TeamGridResponse | ApiError>> {
   const { slug } = await params;
 

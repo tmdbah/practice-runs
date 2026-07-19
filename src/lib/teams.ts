@@ -5,7 +5,7 @@ import type { Status } from "@/generated/prisma/enums";
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 export async function getTeamGrid(
-  slug: string
+  slug: string,
 ): Promise<TeamGridResponse | null> {
   const team = await prisma.team.findUnique({
     where: { slug },
@@ -20,9 +20,7 @@ export async function getTeamGrid(
   if (!team) return null;
 
   const players = team.players.map((player) => {
-    const defaultsByDay = new Map(
-      player.defaults.map((d) => [d.dayOfWeek, d])
-    );
+    const defaultsByDay = new Map(player.defaults.map((d) => [d.dayOfWeek, d]));
 
     const schedule: ScheduleEntry[] = ALL_DAYS.map((day) => {
       const row = defaultsByDay.get(day);

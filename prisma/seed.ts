@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    `Seeded demo team "${team.name}" (slug: ${team.slug}) with ${DEMO_PLAYERS.length} players.`
+    `Seeded demo team "${team.name}" (slug: ${team.slug}) with ${DEMO_PLAYERS.length} players.`,
   );
 }
 
