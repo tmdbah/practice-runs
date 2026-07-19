@@ -8,6 +8,8 @@ export interface DayWindowEntry {
   dayOfWeek: number;
   /** Full day name, e.g. "Monday" */
   label: string;
+  /** Short day abbreviation, e.g. "Fri" */
+  shortLabel: string;
   teamWindow: TeamWindow | undefined;
 }
 
@@ -23,13 +25,6 @@ function fmtTime(t: string): string {
   const period = h < 12 ? "am" : "pm";
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${mStr}${period}`;
-}
-
-/** Formats an ISO date "YYYY-MM-DD" → "Jul 24" */
-function fmtDate(iso: string): string {
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /** Highest availableCount wins; ties broken by earliest date. All-zero → day 0. */
@@ -53,6 +48,7 @@ export function computeDefaultIndex(entries: DayWindowEntry[]): number {
 
 export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
   const [index, setIndex] = useState(() => computeDefaultIndex(entries));
+  const [bestIndex] = useState(() => computeDefaultIndex(entries));
   const scrollRef = useRef<HTMLDivElement>(null);
   const suppressScrollSync = useRef(false);
 
@@ -106,47 +102,45 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
 
   return (
     <div className="mb-4">
-      <div className="flex items-center gap-2">
+      <div className="relative rounded-xl bg-surface border border-border">
         <button
           type="button"
           onClick={() => scrollToIndex(index - 1)}
           disabled={index === 0}
           aria-label="Previous day"
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-surface border border-border text-text text-lg disabled:opacity-30 disabled:cursor-not-allowed hover:border-accent transition-colors"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
         >
           ‹
         </button>
 
         <div
           ref={scrollRef}
-          className="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+          className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-7"
         >
-          {entries.map((entry) => {
+          {entries.map((entry, i) => {
             const w = entry.teamWindow;
             const availableCount = w?.availableCount ?? 0;
+            const isBest = i === bestIndex && availableCount > 0;
             return (
-              <div key={entry.dayOfWeek} className="w-full shrink-0 snap-center px-0.5">
-                <div className="rounded-xl bg-surface border border-border px-4 py-3 flex flex-col items-center gap-1 text-center min-h-[86px] justify-center">
-                  <div className="text-[10px] uppercase tracking-wide text-text-mute">
-                    {entry.label}
-                    {w?.date ? ` · ${fmtDate(w.date)}` : ""}
-                  </div>
-                  {availableCount === 0 ? (
-                    <div className="text-sm text-text-dim py-1">
-                      Nobody&rsquo;s free yet
-                    </div>
+              <div key={entry.dayOfWeek} className="w-full shrink-0 snap-center py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-text-dim">
+                    Team window
+                  </span>
+                  {availableCount > 0 && w?.window ? (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent-dim whitespace-nowrap">
+                      {entry.shortLabel} {fmtTime(w.window.from)}–{fmtTime(w.window.to)}
+                    </span>
                   ) : (
-                    <>
-                      <div className="text-base font-bold text-accent leading-tight">
-                        {w?.window
-                          ? `${fmtTime(w.window.from)} – ${fmtTime(w.window.to)}`
-                          : "No common time"}
-                      </div>
-                      <div className="text-xs text-text-dim">
-                        {availableCount} free
-                      </div>
-                    </>
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-surface-2 text-text-mute border border-border whitespace-nowrap">
+                      {entry.shortLabel} —
+                    </span>
                   )}
+                </div>
+                <div className="text-[11px] text-text-mute mt-0.5">
+                  {availableCount === 0
+                    ? "Nobody's free yet"
+                    : `${availableCount} free${isBest ? " · best overlap" : ""}`}
                 </div>
               </div>
             );
@@ -158,13 +152,13 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
           onClick={() => scrollToIndex(index + 1)}
           disabled={index === entries.length - 1}
           aria-label="Next day"
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-surface border border-border text-text text-lg disabled:opacity-30 disabled:cursor-not-allowed hover:border-accent transition-colors"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-6 h-6 flex items-center justify-center rounded-full text-text-dim disabled:opacity-20 disabled:cursor-not-allowed hover:text-accent transition-colors"
         >
           ›
         </button>
       </div>
 
-      <div className="flex justify-center gap-1.5 mt-2">
+      <div className="flex justify-center gap-1.5 mt-1.5">
         {entries.map((entry, i) => (
           <button
             key={entry.dayOfWeek}

@@ -10,6 +10,7 @@ const LABELS = [
   "Saturday",
   "Sunday",
 ];
+const SHORT_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 function makeEntries(
@@ -19,6 +20,7 @@ function makeEntries(
   return DAY_ORDER.map((dayOfWeek, i) => ({
     dayOfWeek,
     label: LABELS[i],
+    shortLabel: SHORT_LABELS[i],
     teamWindow: {
       date: dates[i],
       dayOfWeek,
