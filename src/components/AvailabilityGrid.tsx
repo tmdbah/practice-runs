@@ -308,6 +308,55 @@ export function AvailabilityGrid({
     }
   }
 
+  /** Clears a This Week override, reverting that date back to inheriting Usual. */
+  async function handleReset(): Promise<void> {
+    if (!activeEdit || mode !== "this-week") return;
+    const { playerId } = activeEdit;
+    const isoDate = activeEdit.key as string;
+    const player = data.players.find((p) => p.id === playerId);
+    const baseCell = player?.thisWeek.find((c) => c.date === isoDate);
+    if (!player || !baseCell) return;
+
+    const key = `${playerId}:${isoDate}`;
+    const previous = weekOverrides.get(key) ?? baseCell;
+
+    const usualEntry = getUsualEntry(player, baseCell.dayOfWeek);
+    const inheritedCell: DayCell = {
+      date: isoDate,
+      dayOfWeek: baseCell.dayOfWeek,
+      effectiveStatus: usualEntry.status,
+      fromTime: usualEntry.fromTime,
+      toTime: usualEntry.toTime,
+      note: usualEntry.note,
+      isOverridden: false,
+    };
+
+    setWeekOverrides((prev) => new Map(prev).set(key, inheritedCell));
+    closeDrawer();
+
+    const tw = computeWindowForDate(isoDate, baseCell.dayOfWeek, playerId, {
+      status: inheritedCell.effectiveStatus,
+      fromTime: inheritedCell.fromTime,
+      toTime: inheritedCell.toTime,
+    });
+    setWindowOverrides((prev) => new Map(prev).set(isoDate, tw));
+
+    const res = await fetch(
+      `/api/teams/${data.team.slug}/players/${playerId}/override?date=${isoDate}`,
+      { method: "DELETE" },
+    );
+
+    if (!res.ok) {
+      setWeekOverrides((prev) => new Map(prev).set(key, previous as DayCell));
+      setWindowOverrides((prev) => {
+        const next = new Map(prev);
+        next.delete(isoDate);
+        return next;
+      });
+      setCellError(`${playerId}:${isoDate}`);
+    }
+  }
+
   const activePlayer = activeEdit
     ? (data.players.find((p) => p.id === activeEdit.playerId) ?? null)
     : null;
@@ -343,17 +392,22 @@ export function AvailabilityGrid({
     );
   })();
 
+  const activeIsOverridden: boolean =
+    mode === "this-week" && activePlayer
+      ? getWeekCell(activePlayer, activeDayOfWeek).isOverridden
+      : false;
+
   return (
     <>
       {/* Mode toggle */}
-      <div className="flex gap-1 mb-4 p-1 bg-surface rounded-xl border border-border w-fit">
+      <div className="flex gap-1 mb-4 p-1 bg-surface rounded-xl border border-border w-full">
         {(["this-week", "usual"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
             className={[
-              "px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+              "flex-1 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors text-center",
               mode === m
                 ? "bg-accent text-bg"
                 : "text-text-dim hover:text-text",
@@ -402,19 +456,30 @@ export function AvailabilityGrid({
                   <td className="pr-2 py-1 align-middle">
                     <span
                       className={[
-                        "text-sm truncate max-w-[6rem] block",
+                        "text-sm truncate max-w-[6rem] flex items-center gap-1",
                         isYou ? "text-text font-semibold" : "text-text-dim",
                       ].join(" ")}
                     >
-                      {player.number !== null && (
-                        <span className="text-text-mute text-xs mr-1">
+                      {player.number !== null ? (
+                        <span
+                          className={
+                            isYou
+                              ? "shrink-0 inline-flex items-center justify-center h-[1.125rem] px-1.5 rounded-full bg-gold-soft text-gold text-[10px] font-bold border border-gold/40"
+                              : "shrink-0 text-text-mute text-xs"
+                          }
+                        >
                           #{player.number}
                         </span>
+                      ) : (
+                        isYou && (
+                          <span
+                            className="shrink-0 w-1.5 h-1.5 rounded-full bg-gold"
+                            aria-hidden="true"
+                          />
+                        )
                       )}
-                      {player.name}
-                      {isYou && (
-                        <span className="ml-1 text-accent text-xs">(you)</span>
-                      )}
+                      <span className="truncate">{player.name}</span>
+                      {isYou && <span className="sr-only"> (you)</span>}
                     </span>
                   </td>
                   {DAY_ORDER.map((day) => {
@@ -458,6 +523,8 @@ export function AvailabilityGrid({
           entry={activeEntry}
           onSave={handleSave}
           onClose={closeDrawer}
+          isOverridden={activeIsOverridden}
+          onReset={mode === "this-week" ? handleReset : undefined}
         />
       )}
     </>

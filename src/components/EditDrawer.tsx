@@ -19,6 +19,10 @@ interface EditDrawerProps {
   entry: ScheduleEntry;
   onSave: (entry: ScheduleEntry) => Promise<void>;
   onClose: () => void;
+  /** This Week mode only: true when this date already has an explicit override */
+  isOverridden?: boolean;
+  /** This Week mode only: clears the override, reverting the day to inherit Usual */
+  onReset?: () => Promise<void>;
 }
 
 export function EditDrawer({
@@ -27,12 +31,15 @@ export function EditDrawer({
   entry,
   onSave,
   onClose,
+  isOverridden = false,
+  onReset,
 }: EditDrawerProps): JSX.Element {
   const [status, setStatus] = useState<Status>(entry.status);
   const [fromTime, setFromTime] = useState(entry.fromTime ?? "");
   const [toTime, setToTime] = useState(entry.toTime ?? "");
   const [note, setNote] = useState(entry.note ?? "");
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   async function handleSave(): Promise<void> {
     setSaving(true);
@@ -45,6 +52,13 @@ export function EditDrawer({
     };
     await onSave(updatedEntry);
     setSaving(false);
+  }
+
+  async function handleReset(): Promise<void> {
+    if (!onReset) return;
+    setResetting(true);
+    await onReset();
+    setResetting(false);
   }
 
   return (
@@ -146,10 +160,21 @@ export function EditDrawer({
           />
         </div>
 
+        {isOverridden && onReset && (
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={saving || resetting}
+            className="w-full py-3 mb-3 rounded-xl border border-border text-text-dim hover:text-text hover:border-border-strong disabled:opacity-50 font-medium text-sm transition-colors"
+          >
+            {resetting ? "Resetting…" : "Reset to Usual"}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || resetting}
           className="w-full py-3 rounded-xl bg-accent hover:bg-accent-dim disabled:opacity-50 text-bg font-semibold text-sm transition-colors"
         >
           {saving ? "Saving…" : "Save"}

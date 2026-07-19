@@ -24,25 +24,27 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text px-3 py-4">
-      <header className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-surface border border-border">
-        <Image
-          src="/UK_logo.PNG"
-          alt=""
-          width={28}
-          height={28}
-          aria-hidden="true"
-        />
-        <div>
-          <div className="text-sm font-bold leading-tight">
-            {data.team.name}
+    <div className="min-h-screen bg-bg text-text px-3 py-4 flex justify-center">
+      <div className="w-full max-w-md">
+        <header className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-surface border border-border">
+          <Image
+            src="/UK_logo.PNG"
+            alt=""
+            width={28}
+            height={28}
+            aria-hidden="true"
+          />
+          <div>
+            <div className="text-sm font-bold leading-tight">
+              {data.team.name}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-text-mute leading-tight">
+              Grid
+            </div>
           </div>
-          <div className="text-[10px] uppercase tracking-wide text-text-mute leading-tight">
-            Grid
-          </div>
-        </div>
-      </header>
-      <AvailabilityGrid data={data} currentPlayerId={playerId} />
+        </header>
+        <AvailabilityGrid data={data} currentPlayerId={playerId} />
+      </div>
     </div>
   );
 }

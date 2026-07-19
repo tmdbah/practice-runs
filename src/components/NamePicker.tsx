@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { JSX } from "react";
 import Image from "next/image";
 import type { PlayerRow } from "@/types/api";
@@ -13,45 +14,56 @@ export function NamePicker({
   players,
   onSelect,
 }: NamePickerProps): JSX.Element {
+  const [selectedId, setSelectedId] = useState(players[0]?.id ?? "");
+
   return (
-    <div className="flex flex-col items-center min-h-screen px-4 py-10 bg-bg text-text">
-      <Image
-        src="/UK_logo.PNG"
-        alt="Uncrowned Kings"
-        width={88}
-        height={88}
-        className="mb-4"
-        priority
-      />
-      <h1 className="text-xl font-bold">Uncrowned Kings</h1>
-      <p className="text-text-dim text-xs mb-8">Practice Runs</p>
+    <div className="flex items-center justify-center min-h-screen px-4 py-10 bg-bg text-text">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface px-6 py-8 flex flex-col items-center">
+        <Image
+          src="/UK_logo.PNG"
+          alt="Uncrowned Kings"
+          width={64}
+          height={64}
+          className="mb-4"
+          priority
+        />
+        <h1 className="text-xl font-bold">Uncrowned Kings</h1>
+        <p className="text-text-dim text-xs mb-8">Practice Runs</p>
 
-      <p className="text-[11px] tracking-wide uppercase text-text-mute mb-3 self-start w-full max-w-sm">
-        Which player are you?
-      </p>
+        <p className="text-[11px] tracking-wide uppercase text-text-mute mb-2 self-start">
+          Which player are you?
+        </p>
 
-      <ul className="w-full max-w-sm space-y-2">
-        {players.map((player) => (
-          <li key={player.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(player.id)}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-surface border border-border hover:border-accent active:bg-surface-2 transition-colors text-left"
-            >
-              <span className="font-medium">{player.name}</span>
-              {player.number !== null && (
-                <span className="text-text-dim text-sm">
-                  #{player.number}
-                </span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl bg-surface-2 border border-border text-text font-medium focus:outline-none focus:border-accent"
+        >
+          {players.map((player) => (
+            <option key={player.id} value={player.id}>
+              {player.name}
+              {player.number !== null ? ` #${player.number}` : ""}
+            </option>
+          ))}
+        </select>
 
-      <p className="text-text-mute text-xs mt-6">
-        {players.length} players in roster · remembered on this device
-      </p>
+        <p className="text-text-mute text-xs mt-2 mb-6 self-start">
+          {players.length} players in roster
+        </p>
+
+        <button
+          type="button"
+          onClick={() => selectedId && onSelect(selectedId)}
+          disabled={!selectedId}
+          className="w-full py-3 rounded-full bg-accent text-bg font-bold hover:bg-accent-dim transition-colors disabled:opacity-50"
+        >
+          Continue
+        </button>
+
+        <p className="text-text-mute text-[11px] mt-3">
+          Remembered on this device
+        </p>
+      </div>
     </div>
   );
 }
