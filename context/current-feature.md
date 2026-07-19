@@ -10,23 +10,15 @@ main
 
 <!-- Not Started|In Progress|Completed -->
 
-Completed
+Not Started
 
 ## Goals
 
 <!-- Goals & requirements -->
 
-- Fix: native time-picker clock icon renders black-on-dark in the edit drawer's From/To inputs — make it visible in dark mode
-- Fix: editing Usual Schedule then toggling to This Week doesn't reflect the change until a manual page refresh — inherited (non-overridden) This Week cells must merge live `usualOverrides` optimistic state, not just the server snapshot
-- Change: default grid mode on load from "usual" to "this-week" — going forward This Week is the more common thing a returning player checks
-- Fix: This Week grid columns render uneven widths (e.g. Friday narrower than other days) — `table-layout: auto` was letting the browser size each column off its sparsest cell's content (the "no common time" window box)
-
 ## Notes
 
 <!-- Any extra notes -->
-
-- Team window calc logic (for reference, unchanged): computed independently per day (`src/lib/teams.ts`) as `[MAX(all non-UNAVAILABLE players' fromTime), MIN(...toTime)]`, ANYTIME treated as 00:00–23:59; invalid range (max ≥ min) → "no common time". Not a single "best day" calc — all 7 days always computed.
-- Team Window *display* redesign (separate carousel card per mockup, replacing the table row) is scoped as its own feature — see `context/features/feature-team-window-carousel-spec.md`.
 
 ## History
 
