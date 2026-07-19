@@ -4,7 +4,7 @@
 >
 > Scope: covers the full planned system through Phase 5, including subsystems not yet built. Anything not yet implemented is marked **`[Planned]`**.
 >
-> Status: Planning complete. Phase 1 not started. Update this file when an architecture decision changes — don't let it drift from what's actually built.
+> Status: Phase 1 (core availability grid) shipped. Phase 2 not started. Update this file when an architecture decision changes — don't let it drift from what's actually built.
 
 ---
 

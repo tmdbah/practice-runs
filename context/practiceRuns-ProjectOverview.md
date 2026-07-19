@@ -1,7 +1,7 @@
 # Practice Runs — Project Overview
 
 > **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps.
-> **Status:** Planning complete. Phase 1 not started.
+> **Status:** Phase 1 (core availability grid) shipped. Phase 2 not started.
 > **Version:** V1 — MVP (recurring availability grid)
 
 This is the enriched source of truth for **Practice Runs**, superseding `practiceRuns-ProjectSpec.md` (discarded). Keep this file and [`practiceRuns-ProjectPlan.html`](practiceRuns-ProjectPlan.html) in lockstep as phases complete or decisions change.
