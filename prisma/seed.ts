@@ -55,6 +55,23 @@ async function main(): Promise<void> {
   console.log(
     `Seeded demo team "${team.name}" (slug: ${team.slug}) with ${DEMO_PLAYERS.length} players.`,
   );
+
+  // Seed INSZN as the first venue (admin-added, RENTED_GYM)
+  // costPerSession: ~$100 per 2hr session, stored in cents
+  await prisma.venue.upsert({
+    where: { id: "inszn-venue" },
+    update: {},
+    create: {
+      id: "inszn-venue",
+      name: "INSZN",
+      type: "RENTED_GYM",
+      address: "Chicago, IL",
+      bookingUrl: "https://insznbasketball.com",
+      costPerSession: 10000, // $100.00 in cents
+    },
+  });
+
+  console.log("Seeded INSZN venue.");
 }
 
 main()

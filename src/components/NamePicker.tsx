@@ -34,18 +34,31 @@ export function NamePicker({
           Which player are you?
         </p>
 
-        <select
-          value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-surface-2 border border-border text-text font-medium focus:outline-none focus:border-accent"
+        <div
+          role="listbox"
+          aria-label="Select your name"
+          className="w-full max-h-52 overflow-y-auto rounded-xl border border-border divide-y divide-border"
         >
           {players.map((player) => (
-            <option key={player.id} value={player.id}>
+            <button
+              key={player.id}
+              role="option"
+              aria-selected={selectedId === player.id}
+              type="button"
+              onClick={() => setSelectedId(player.id)}
+              className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                selectedId === player.id
+                  ? "bg-accent text-bg"
+                  : "bg-surface-2 text-text hover:bg-surface"
+              }`}
+            >
               {player.name}
-              {player.number !== null ? ` #${player.number}` : ""}
-            </option>
+              {player.number !== null ? (
+                <span className="ml-1 opacity-60">#{player.number}</span>
+              ) : null}
+            </button>
           ))}
-        </select>
+        </div>
 
         <p className="text-text-mute text-xs mt-2 mb-6 self-start">
           {players.length} players in roster

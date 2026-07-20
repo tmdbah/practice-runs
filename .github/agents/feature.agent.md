@@ -13,7 +13,7 @@ You manage the full lifecycle of a feature from spec to merge.
 Always begin by reading `context/current-feature.md`. It tracks the active feature and has this structure:
 
 - `# Current Feature` — H1 heading (includes feature name when active, e.g. `# Current Feature: Add Navbar`)
-- `## Merge Target` — the branch the feature branch will be merged into on `complete` (e.g. `squ-art-wiki-redesign` or `master`)
+- `## Merge Target` — the branch the feature branch will be merged into on `complete` (e.g. `wiki-redesign` or `master`)
 - `## Status` — `Not Started` | `In Progress` | `Complete`
 - `## Goals` — Bullet points of what success looks like
 - `## Notes` — Additional context, constraints, or details from the spec

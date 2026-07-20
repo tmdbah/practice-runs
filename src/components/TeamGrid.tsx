@@ -1,27 +1,52 @@
 "use client";
 
 import type { JSX } from "react";
+import { useEffect } from "react";
 import Image from "next/image";
 import { useIdentity } from "@/hooks/use-identity";
 import { NamePicker } from "@/components/NamePicker";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
-import type { TeamGridResponse } from "@/types/api";
+import { SessionsView } from "@/components/SessionsView";
+import type {
+  TeamGridResponse,
+  SessionResponse,
+  VenueSummary,
+} from "@/types/api";
 
 interface TeamGridProps {
   data: TeamGridResponse;
+  initialSessions: SessionResponse[];
+  venues: VenueSummary[];
 }
 
-export function TeamGrid({ data }: TeamGridProps): JSX.Element {
+export function TeamGrid({
+  data,
+  initialSessions,
+  venues,
+}: TeamGridProps): JSX.Element {
   const { playerId, setPlayerId, isLoaded } = useIdentity(data.team.slug);
 
-  // Avoid flash of picker on returning visitors
+  // Validate stored identity against current roster — clear it if stale
+  const isValidPlayer =
+    playerId != null && data.players.some((p) => p.id === playerId);
+
+  // If the stored ID is non-null but not in the roster, clear it.
+  // useEffect avoids a side effect during render.
+  useEffect(() => {
+    if (isLoaded && playerId && !isValidPlayer) {
+      setPlayerId("");
+    }
+  }, [isLoaded, playerId, isValidPlayer, setPlayerId]);
+
   if (!isLoaded) {
     return <div className="min-h-screen bg-bg" />;
   }
 
-  if (!playerId) {
+  if (!playerId || !isValidPlayer) {
     return <NamePicker players={data.players} onSelect={setPlayerId} />;
   }
+
+  const currentPlayer = data.players.find((p) => p.id === playerId);
 
   return (
     <div className="min-h-screen bg-bg text-text px-3 py-4 flex justify-center">
@@ -34,7 +59,7 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
             height={28}
             aria-hidden="true"
           />
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="text-sm font-bold leading-tight">
               {data.team.name}
             </div>
@@ -42,8 +67,27 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
               Grid
             </div>
           </div>
+          {currentPlayer && (
+            <button
+              onClick={() => setPlayerId("")}
+              className="text-xs text-text-mute hover:text-text transition-colors shrink-0 flex flex-col items-end"
+              aria-label="Switch player"
+            >
+              <span className="font-medium">{currentPlayer.name}</span>
+              <span className="text-[10px] uppercase tracking-wide">
+                Switch
+              </span>
+            </button>
+          )}
         </header>
         <AvailabilityGrid data={data} currentPlayerId={playerId} />
+        <div className="px-1 pb-8 mt-6">
+          <SessionsView
+            slug={data.team.slug}
+            initialSessions={initialSessions}
+            venues={venues}
+          />
+        </div>
       </div>
     </div>
   );

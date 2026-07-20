@@ -1,9 +1,8 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Scope: Phase 1-2 data only (Team, Player, DayDefault, DateOverride).
-// Do NOT add NextAuth models or Venue/Session/Rsvp here - those are gated
-// on Phase 5's auth trigger and Phase 3 respectively. See AGENTS.md.
+// Scope: Phase 1-3 data (Team, Player, DayDefault, DateOverride, Venue, Session, Rsvp).
+// Do NOT add NextAuth models here - those are gated on Phase 5's auth trigger. See AGENTS.md.
 
 generator client {
   provider = "prisma-client"
@@ -21,10 +20,11 @@ enum Status {
 }
 
 model Team {
-  id      String   @id @default(cuid())
-  slug    String   @unique // shareable URL, e.g. "uncrowned-kings"
-  name    String
-  players Player[]
+  id       String    @id @default(cuid())
+  slug     String    @unique // shareable URL, e.g. "uncrowned-kings"
+  name     String
+  players  Player[]
+  sessions Session[]
 }
 
 model Player {
@@ -35,6 +35,7 @@ model Player {
   number    Int? // jersey number, nullable - 0 is a valid value
   defaults  DayDefault[]
   overrides DateOverride[]
+  rsvps     Rsvp[]
 
   @@index([teamId])
 }
@@ -63,4 +64,50 @@ model DateOverride {
   note     String?
 
   @@unique([playerId, date])
+}
+
+// ─── Phase 3: Sessions & Venues ───────────────────────────────────────────────
+
+enum VenueType {
+  RENTED_GYM // booked and paid, exclusive access, worth it only above minPlayers
+  OPEN_GYM   // public gym time, no booking
+  PARK       // free, no booking
+}
+
+model Venue {
+  id             String    @id @default(cuid())
+  name           String
+  type           VenueType
+  address        String?
+  bookingUrl     String?
+  costPerSession Int?      // cents — typical/last-used cost, RENTED_GYM only
+  sessions       Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  teamId       String
+  team         Team     @relation(fields: [teamId], references: [id])
+  venueId      String?
+  venue        Venue?   @relation(fields: [venueId], references: [id])
+  proposedById String?  // playerId of the player who proposed — null for legacy rows
+  date         DateTime
+  fromTime     String
+  toTime       String
+  costTotal    Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
+  minPlayers   Int?     // RENTED_GYM only — editable, never hardcoded
+  rsvps        Rsvp[]
+
+  @@index([teamId])
+}
+
+model Rsvp {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  status    Status
+
+  @@unique([sessionId, playerId])
 }

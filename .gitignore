@@ -46,5 +46,6 @@ next-env.d.ts
 
 /src/generated/prisma
 
-# API Keys
+# MCP & PlayWright
 .mcp.json
+.playwright-mcp

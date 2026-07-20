@@ -2,6 +2,17 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+/** No-op subscription: mount status never changes after the fact, so there's nothing to notify. */
+function subscribeNoop(): () => void {
+  return () => {};
+}
+function getIsLoadedClientSnapshot(): boolean {
+  return true;
+}
+function getIsLoadedServerSnapshot(): boolean {
+  return false;
+}
+
 interface StoredIdentity {
   playerId: string;
 }
@@ -48,10 +59,16 @@ export function useIdentity(slug: string): {
     getServerSnapshot,
   );
 
-  // On the server getServerSnapshot returns null;
-  // on the client getSnapshot runs synchronously so we're always "loaded".
-  // We detect client-side by checking if window exists (runs after hydration).
-  const isLoaded = typeof window !== "undefined";
+  // `typeof window !== "undefined"` is true on the client's very first render —
+  // including the hydration pass React uses to match server output — so it can't
+  // signal "mounted" without causing a mismatch. Reusing useSyncExternalStore's
+  // dual-snapshot mechanism (same trick as `playerId` above) renders `false` on
+  // the hydration pass to match the server, then flips to `true` right after mount.
+  const isLoaded = useSyncExternalStore(
+    subscribeNoop,
+    getIsLoadedClientSnapshot,
+    getIsLoadedServerSnapshot,
+  );
 
   function setPlayerId(id: string): void {
     const identity: StoredIdentity = { playerId: id };
