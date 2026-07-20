@@ -1,8 +1,8 @@
 # Practice Runs — Project Overview
 
 > **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps.
-> **Status:** Phases 1–2 (core availability grid + This Week overrides/team window) shipped. Phase 3 not started.
-> **Version:** V1 — MVP (recurring availability grid)
+> **Status:** Phases 1–3 (core availability grid, This Week overrides/team window, Sessions & venues) shipped. Phase 4 (polish) not started.
+> **Version:** V1 — MVP (recurring availability grid) + Sessions & Venues
 
 This is the enriched source of truth for **Practice Runs**, superseding `practiceRuns-ProjectSpec.md` (discarded). Keep this file and [`practiceRuns-ProjectPlan.html`](practiceRuns-ProjectPlan.html) in lockstep as phases complete or decisions change.
 
@@ -42,12 +42,13 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 
 - This Week / Usual toggle, `DateOverride` writes, inherited-vs-overridden styling, live per-day available count + team window.
 
-### V3 — Sessions & Venues (Phase 3, partially unblocked)
+### V3 — Sessions & Venues (Phase 3, shipped)
 
-- Propose a one-off session at a rented gym, open gym, or park
-- RSVP against a session
-- Live cost-per-person split and minimum-headcount check for rented-gym sessions
-- Admin-added venues (INSZN is a usable first entry: ~$100/2hr, `RENTED_GYM`)
+- Propose a one-off session at a rented gym, open gym, or park — venue, date, and time range, embedded directly on the `/team/[slug]` grid page (no separate route)
+- Edit an existing session in place (proposer-only in the UI; not server-enforced) and delete it (with an inline confirm step), without disturbing existing RSVPs
+- RSVP in/out against a session, optimistic with revert-on-failure — one row per player per session (upsert)
+- Live cost-per-person split and minimum-headcount check for `RENTED_GYM` sessions: RSVP'd count vs. `minPlayers`, cost/person now, and projected cost once `minPlayers` join
+- Admin-added venues via `/admin/venues` (list) + `/admin/venues/new` (form → `createVenue` Server Action) — unguarded route, not an open API, matching the "admin-added only" decision without a login wall. INSZN is seeded as the first entry (~$100/2hr, `RENTED_GYM`)
 
 ### V4 — Polish (Phase 4)
 
@@ -71,7 +72,7 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 | Phase | Storage | Trigger to Upgrade |
 |---|---|---|
 | V1 (Phase 1) | Neon Postgres + Prisma from day one for grid data; player identity in `localStorage` | N/A — DB is used from the start since the sheet already proved multi-user, structured data is required |
-| Phase 3 | Same DB, new tables (`Venue`, `Session`, `Rsvp`) | Sessions feature build |
+| Phase 3 — done | Same DB, new tables (`Venue`, `Session`, `Rsvp`) | Sessions feature build |
 | Phase 5 | Add NextAuth v5 + per-team permission logic | Opening the app to people outside TJ's direct trust circle |
 
 ### Models
@@ -80,10 +81,11 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 // schema.prisma
 
 model Team {
-  id      String   @id @default(cuid())
-  slug    String   @unique   // shareable URL, e.g. "uncrowned-kings"
-  name    String
-  players Player[]
+  id       String    @id @default(cuid())
+  slug     String    @unique   // shareable URL, e.g. "uncrowned-kings"
+  name     String
+  players  Player[]
+  sessions Session[]        // live from Phase 3
 }
 
 model Player {
@@ -94,6 +96,7 @@ model Player {
   number    Int?           // jersey number, nullable — 0 is a valid value — live from Phase 1
   defaults  DayDefault[]
   overrides DateOverride[]
+  rsvps     Rsvp[]         // live from Phase 3
 }
 
 enum Status {
@@ -126,7 +129,7 @@ model DateOverride {
   @@unique([playerId, date])
 }
 
-// --- Not in Phase 1/2. Phase 3 — see Gap analysis below. ---
+// --- Phase 3, shipped. ---
 
 enum VenueType {
   RENTED_GYM  // booked and paid for, exclusive access, worth it only above minPlayers
@@ -145,17 +148,18 @@ model Venue {
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  teamId     String
-  team       Team     @relation(fields: [teamId], references: [id])
-  venueId    String?
-  venue      Venue?   @relation(fields: [venueId], references: [id])
-  date       DateTime
-  fromTime   String
-  toTime     String
-  costTotal  Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
-  minPlayers Int?     // RENTED_GYM only — worth booking only above this count
-  rsvps      Rsvp[]
+  id           String   @id @default(cuid())
+  teamId       String
+  team         Team     @relation(fields: [teamId], references: [id])
+  venueId      String?
+  venue        Venue?   @relation(fields: [venueId], references: [id])
+  proposedById String?  // playerId of the proposer; null for legacy rows — gates the Edit/Delete buttons client-side only
+  date         DateTime
+  fromTime     String
+  toTime       String
+  costTotal    Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
+  minPlayers   Int?     // RENTED_GYM only — worth booking only above this count
+  rsvps        Rsvp[]
 }
 
 model Rsvp {
@@ -193,7 +197,7 @@ model Rsvp {
 - **Client-stored identity over accounts:** trust-based editing (same as the sheet) removes all auth/account build cost for a ~15-person group that doesn't need it yet.
 - **Optimistic UI over confirmation flows:** the updated cell is the confirmation — no toast/modal — because save failures are rare and reversible.
 - **Manual pull-to-refresh over real-time sync:** websockets/polling are unjustified complexity at this scale; revisit only if staleness becomes a real complaint.
-- **Sessions as a separate model, not a Phase 1 feature:** validates the core tap-to-edit interaction on real usage first, then layers Sessions on top without reworking the grid.
+- **Sessions as a separate model, not a Phase 1 feature:** validated the core tap-to-edit interaction on real usage first, then layered Sessions on top without reworking the grid (shipped in Phase 3).
 
 ---
 
@@ -220,7 +224,7 @@ model Rsvp {
 | Onboarding walkthrough (Phase 4) | Short, dismissible tour shown once on first visit after the name picker — spotlights the grid, a cell tap, the This Week/Usual toggle, and the team window readout. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
 | Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live Team Window carousel card (defaults to best-availability day; arrows + swipe + dot indicators page through the rest) |
 | Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save. This Week mode only, and only when the cell is already overridden: a "Reset to Usual" button clears the `DateOverride` and reverts the day to inheriting `DayDefault` |
-| Session proposal (Phase 3) | Venue + date + time slots, RSVP count vs. minPlayers, live cost/person now vs. at threshold, "I'm in" |
+| Sessions list (Phase 3, shipped) | Renders below the grid on the same `/team/[slug]` page — no separate route. "+ Propose" opens an inline form (venue select, date, from/to time, and for `RENTED_GYM` venues, total cost + min players). Each session card shows In/Out RSVP buttons, the RSVP'd list, and for `RENTED_GYM` sessions the live cost-split + headcount block. The proposer sees additional Edit (reopens the same form pre-filled) and Delete (inline "Delete this session?" confirm, no modal) actions |
 
 ### Grid Cell States
 
@@ -243,8 +247,9 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 
 | Route | Purpose |
 |---|---|
-| `/team/[slug]` | Home grid — This Week / Usual toggle, tap-to-edit |
-| `/team/[slug]/whoami` | First-visit identity picker (may be a modal instead of a route) |
+| `/team/[slug]` | Home — grid (This Week / Usual toggle, tap-to-edit) with the Sessions list rendered below it on the same page; also renders the first-visit `NamePicker` in place of the grid when no valid identity is stored |
+| `/admin/venues` | Venue list (Server Component, reads `Venue` directly) |
+| `/admin/venues/new` | Add-venue form → `createVenue` Server Action. Unguarded route, not linked from the main UI — "admin-added only" enforced by obscurity, not auth |
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -252,7 +257,12 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 | `/api/teams/[slug]/players/[playerId]/default` | PATCH | Update a Usual Schedule day |
 | `/api/teams/[slug]/players/[playerId]/override` | PATCH | Update a This Week override |
 | `/api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD` | DELETE | Clear a This Week override for a date ("Reset to Usual"), reverting that day to inherit `DayDefault`. Idempotent — no-op if no override exists |
-| `/api/teams/[slug]/players` | POST | Add a new player to the roster |
+| `/api/teams/[slug]/players` | POST | *Planned, Phase 4* — add a new player to the roster; not yet built |
+| `/api/teams/[slug]/sessions` | GET | List all sessions for the team, with venue + RSVPs |
+| `/api/teams/[slug]/sessions` | POST | Propose a new session (venue, date, time range, and for `RENTED_GYM`, cost + minPlayers) |
+| `/api/teams/[slug]/sessions/[sessionId]` | PATCH | Edit an existing session in place — whole-record replace, RSVPs untouched. No server-side proposer check (matches the DELETE/RSVP trust model; the UI only shows the button to the proposer) |
+| `/api/teams/[slug]/sessions/[sessionId]` | DELETE | Delete a session; RSVPs cascade-delete via the schema relation |
+| `/api/teams/[slug]/sessions/[sessionId]/rsvp` | PUT | Upsert the calling player's RSVP (`ANYTIME` = in, `UNAVAILABLE` = out); returns the full updated session |
 
 ### Team Window Calculation
 
@@ -276,6 +286,10 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Team Window display | Single swipeable card (always-visible arrows + native touch swipe + tappable dot indicators), defaults to the best-availability day | Phase 2 shipped it as a row of tiny per-day boxes in the grid table; unreadable at mobile widths (the primary use case) and not interactive. A static single-best-day card (closer to the original mockup) was considered but rejected — it would hide the other 6 days' data the app already computes for free. Calculation (`computeWindowForDate`) is unchanged; this is a display-only change. See `feature-team-window-carousel-spec.md` |
 | Reset to Usual | `DELETE /override` clears a `DateOverride` row; edit drawer shows a "Reset to Usual" button only when the open cell is already overridden (This Week mode only) | Once a player has explicitly overridden a day, there was no way back to "just inherit Usual" short of manually re-entering Usual's exact values — error-prone and easy to get subtly wrong (times off by a few minutes, wrong status). Deleting the override row is the correct semantic "undo," matching the existing invariant that a missing `DateOverride` means "use the default" |
 | Grid markup | Availability grid re-implemented with CSS Grid + explicit ARIA roles (`div[role=table/row/columnheader/rowheader/cell]`) instead of a semantic HTML `<table>` | Same screen-reader semantics as a real `<table>`, but CSS Grid gives the per-breakpoint column sizing (`lg:` widening at the iPad Mini breakpoint) that `table-fixed` couldn't do cleanly. Prompted by testing the grid with the demo roster expanded to a realistic ~15 rows |
+| Sessions page | No dedicated `/team/[slug]/sessions` route — `SessionsView` renders directly below the availability grid on the existing `/team/[slug]` page | The two features share a device/identity context but not data; splitting into a second route would just add a navigation step for a single-page mobile app with room for both |
+| Venue admin | `/admin/venues` (list) + `/admin/venues/new` (form → `createVenue` Server Action) instead of a POST API route | Matches the "admin-added only" decision without adding auth: an unguarded, unlinked route is enough obscurity for a ~15-person group, and a Server Action skips writing a separate request/response contract for a form only one person uses |
+| Session ownership | `Session.proposedById` records who proposed it; Edit/Delete buttons are shown in the UI only when `proposedById === currentPlayerId`, but the `PATCH`/`DELETE` endpoints don't check this server-side | Matches the existing trust model (any `PATCH`/`DELETE` on `DateOverride` already trusts the caller's `playerId`) — consistent rather than partially bolting on enforcement for one endpoint |
+| Session delete confirmation | Inline "Delete this session? Yes, delete / Cancel" swap in place of the Edit/Delete buttons, not a modal | Consistent with the no-modals stance already set by optimistic saves; a inline confirm is enough friction to prevent a mis-tap without interrupting the page |
 
 ---
 
@@ -285,18 +299,18 @@ Surfaced from group chat transcripts (2026-07-17): the recurring weekly grid ans
 
 | What's happening in chat | Covered by current model? |
 |---|---|
-| Propose a specific date + time slot (not recurring) | Gap — addressed by `Session` model |
-| Choosing between externally-offered slots (e.g. 7–9 vs 8–10) | Gap — Team Window only reflects internal overlap, not venue options |
-| "Need at least 10 of us" threshold (only matters when paying) | Gap — addressed by `Session.minPlayers`, `RENTED_GYM` only |
-| Cost split ($100 ÷ confirmed count) | Gap — addressed by `Session.costTotal`, `RENTED_GYM` only |
-| Three venue types (rented gym / open gym / park) | Partially unblocked — INSZN known (~$100/2hrs, `RENTED_GYM`); more addresses/hours needed over time |
-| Who can add a venue | Decided — admin-added only for now |
-| Skipping a venue because it's too far | Deferred — `Venue.address` field added now; real distance/Maps API feature not scoped |
+| Propose a specific date + time slot (not recurring) | Shipped — `Session` model, propose form on `/team/[slug]` |
+| Choosing between externally-offered slots (e.g. 7–9 vs 8–10) | Gap — Team Window only reflects internal overlap; a session's `fromTime`/`toTime` is a single proposed slot, not a set of options to compare. Editable after the fact via `PATCH`, but there's no side-by-side slot picker |
+| "Need at least 10 of us" threshold (only matters when paying) | Shipped — `Session.minPlayers`, `RENTED_GYM` only, live RSVP-count-vs-threshold display |
+| Cost split ($100 ÷ confirmed count) | Shipped — `Session.costTotal`, `RENTED_GYM` only, live cost/person now + cost at `minPlayers` |
+| Three venue types (rented gym / open gym / park) | Shipped, one entry seeded — INSZN (~$100/2hrs, `RENTED_GYM`) via `prisma/seed.ts`; more venues addable through `/admin/venues/new` as they come up |
+| Who can add a venue | Decided and shipped — admin-added only, via unguarded `/admin/venues/new` Server Action route |
+| Skipping a venue because it's too far | Deferred — `Venue.address` field is live and shown on session cards; real distance/Maps API feature not scoped |
 | Full roster accuracy (e.g. Trevor missing from an earlier list) | Action needed — pull the authoritative roster directly from the group |
 | "I'm out this Sunday but otherwise usual" | Covered — This Week override falls back to Usual |
-| Negotiating a day before committing | Covered — editable up until it's set |
+| Negotiating a day before committing | Covered — editable up until it's set; a proposed session can also be edited in place via the Edit button |
 
-**Recommendation:** ship Phases 1–2 (recurring grid) first to validate the core tap-to-edit interaction on real usage, then Sessions (Phase 3) — it's higher-value than further grid polish, and no longer fully blocked.
+**Recommendation:** Phases 1–3 have shipped (recurring grid, then Sessions & venues). Next up is Phase 4 polish — see Build Phases.
 
 ---
 
@@ -304,7 +318,7 @@ Surfaced from group chat transcripts (2026-07-17): the recurring weekly grid ans
 
 1. **Core grid, Usual Schedule only** — Next.js scaffold, Prisma schema + Neon connection, `/team/[slug]` renders the grid, tap-to-edit works for Usual Schedule. No overrides, no team window math yet.
 2. **This Week overrides + team window** — This Week / Usual toggle, `DateOverride` writes, inherited-vs-overridden styling, live overlap calculation.
-3. **Sessions & venues (partially unblocked)** — Propose a one-off session, RSVP, live cost split + minimum-headcount check for rented-gym sessions. INSZN is a usable first venue.
+3. **Sessions & venues — done** — Propose, edit, and delete a one-off session; RSVP in/out; live cost split + minimum-headcount check for rented-gym sessions. INSZN seeded as the first venue; `/admin/venues/new` adds more.
 4. **Polish** — First-visit identity persistence, **first-visit onboarding walkthrough** (dismissible tour of grid/toggle/team-window, gated on `hasSeenTour` in `localStorage`), add-player flow, empty/error states, pull-to-refresh interaction, demo team + daily reset job + demo banner.
 5. **Auth (gated, not scheduled)** — Google/email via NextAuth + per-team permissions. Triggered only by opening this up beyond TJ's direct trust circle.
 
@@ -341,12 +355,12 @@ If the concept proves out through real use, a plausible next step is a small mul
 ```
 Project: Practice Runs
 Stack: Next.js (App Router, latest stable), TypeScript, Tailwind CSS v4, Prisma + Neon
-Current phase: Phase 1 — core Usual Schedule grid, no overrides, no auth
+Current phase: Phase 4 — polish (onboarding tour, add-player flow, empty/error states, demo team). Phases 1–3 shipped.
 
 Rules:
 - Read practiceRuns-ProjectOverview.md before writing any code
 - Do not add features beyond the current phase's scope
-- Sessions/Venue data model is Phase 3 — do not build or wire it early
+- Sessions/Venue data model (Phase 3) is live — do not merge it into the Usual/This Week tables
 - TypeScript always — no plain JS, no `any`
 - Tailwind only — no inline styles
 - Every day defaults to UNAVAILABLE — never assume availability
@@ -354,10 +368,11 @@ Rules:
 
 ### Open Questions
 
-- [ ] Real minimum-headcount threshold for booking a rented gym (8? 10?) — needs an actual team conversation
+- [ ] Real minimum-headcount threshold for booking a rented gym (8? 10?) — needs an actual team conversation. `Session.minPlayers` stays editable per session either way
 - [ ] Full authoritative roster — pull directly from the group, don't reconstruct from scattered chat messages
 - [ ] Address/hours for venues beyond INSZN
-- [ ] Onboarding tour implementation — coach-marks library (e.g. `driver.js`, `react-joyride`) spotlighting real UI vs. a scripted first-session state (auto-opening the edit drawer, pre-highlighting a cell) that has the player perform the real action instead of watching a fake demo; decide when Phase 4 starts
+- [ ] Onboarding tour implementation — coach-marks library (e.g. `driver.js`, `react-joyride`) spotlighting real UI vs. a scripted first-session state (auto-opening the edit drawer, pre-highlighting a cell) that has the player perform the real action instead of watching a fake demo; decide now that Phase 4 is starting
+- [ ] Whether session Edit/Delete need a real server-side proposer check before this goes beyond the trust circle — currently UI-only, consistent with the rest of V1's trust model, but worth revisiting alongside the Phase 5 auth trigger
 
 ---
 

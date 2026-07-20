@@ -27,7 +27,7 @@ Read the following to get the full context of the project:
 
 ## Project Overview
 
-Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built app. Status: Phases 1–2 (core availability grid + This Week overrides/team window) shipped, Phase 3 not started.
+Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketball group to coordinate weekly availability. The sheet proved the data model but breaks down at time-of-day granularity, especially on mobile. This app rebuilds the same logic — plus a real fix for one-off session planning (venue, cost split, headcount) that the sheet never covered — as a small, purpose-built app. Status: Phases 1–3 (core availability grid, This Week overrides/team window, Sessions & venues) shipped. Phase 4 (polish) not started.
 
 ---
 
@@ -62,7 +62,7 @@ src/
 ├── lib/           # Utilities, helpers, API clients
 └── types/         # Shared TypeScript types
 prisma/
-└── schema.prisma  # Team / Player / DayDefault / DateOverride (+ Venue/Session/Rsvp from Phase 3)
+└── schema.prisma  # Team / Player / DayDefault / DateOverride + Venue / Session / Rsvp (Phase 3, live)
 ```
 
 ---
@@ -84,7 +84,8 @@ npm run lint     # Run ESLint
 - **One grid, two write targets:** "Usual" and "This Week" are the same grid and the same tap interaction — a toggle only changes whether a tap writes to `DayDefault` or `DateOverride`. Avoids building and maintaining two separate views.
 - **Optimistic, no-confirmation saves:** tapping Save updates the cell instantly, before the network call resolves, then closes the drawer. On failure the cell reverts with an inline error. No toasts, no modals.
 - **Manual pull-to-refresh, not real-time sync:** no websockets or polling. Right-sized for ~15 people; revisit only if staleness actually becomes a complaint.
-- **Sessions (Phase 3) are a separate data model, not bolted onto the grid:** recurring availability (`DayDefault`/`DateOverride`) and one-off session planning (`Venue`/`Session`/`Rsvp`) don't share state, by design — see the Gap analysis section of the overview doc.
+- **Sessions (Phase 3, shipped) are a separate data model, not bolted onto the grid:** recurring availability (`DayDefault`/`DateOverride`) and one-off session planning (`Venue`/`Session`/`Rsvp`) don't share state, by design — see the Gap analysis section of the overview doc. The `SessionsView` UI renders on the same `/team/[slug]` page, directly below the grid — one route, no separate Sessions page.
+- **Venue admin is a Server Action page, not an API route:** `/admin/venues` (list) + `/admin/venues/new` (form → `createVenue` Server Action) — unguarded route, no auth, matching the "admin-added only" decision without adding a login wall.
 - **Portfolio/demo safety without auth:** a seeded `/team/demo` team with fake data, reset daily, is the actual fix for "a recruiter could break real team data" — not a login wall. The real team's URL is simply never posted publicly.
 
 ---
@@ -119,4 +120,5 @@ npm run lint     # Run ESLint
 **Phase 1 — done:** Usual Schedule grid, tap-to-edit, identity picker, read/write APIs, shipped and merged to `main`.
 **Phase 2 — done:** This Week overrides + team window — `DateOverride` writes, inherited-vs-overridden styling, live per-day overlap calculation, shipped and merged to `main`. The Team Window UI was subsequently reworked from a per-day grid row into a swipeable single-card carousel — see `context/features/feature-team-window-carousel-spec.md`; the calculation itself is unchanged. Also since added: a `DELETE .../override` endpoint + "Reset to Usual" button (clears an override back to inheriting Usual), and the grid was rebuilt on CSS Grid + ARIA roles instead of `<table>` for accessibility and responsive column sizing — see `context/current-feature.md` history for both.
 **Done (V1 as a whole):** the grid beats the spreadsheet on friction, and This Week/Usual overrides plus per-day available-count and team window are all live.
-**Next up (Phase 3):** Sessions & venues — propose a one-off session (rented gym/open gym/park), RSVP, live cost split and minimum-headcount check. Not fully blocked — INSZN is a usable first venue.
+**Phase 3 — done:** Sessions & venues — `Venue`/`Session`/`Rsvp` models + `VenueType` enum, INSZN seeded as the first venue, admin venue form, session propose/edit/delete, optimistic RSVP (in/out), and live cost-split + minimum-headcount display for `RENTED_GYM` sessions. Shipped and merged to `main`; see `context/current-feature.md` history for the full build/fix trail.
+**Next up (Phase 4):** Polish — first-visit onboarding walkthrough, add-player flow, empty/error states, pull-to-refresh, demo team + daily reset job + demo banner. Not started.

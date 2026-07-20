@@ -202,7 +202,7 @@
   <a href="#lessons">Lessons from the sheet</a>
   <div class="status">
     <strong>Current phase</strong>
-    Phases 1&ndash;2 shipped. Phase 3 not started.
+    Phases 1&ndash;3 shipped. Phase 4 (polish) not started.
   </div>
 </nav>
 
@@ -218,7 +218,7 @@
   <h2>Overview</h2>
   <p>Started as a Google Sheets prototype to validate the data model fast, with zero build time. It worked, but scaling it to time-of-day granularity (Anytime / Specific hours / Unavailable, per-day time ranges, notes, per-player overrides) pushed the grid past what Sheets — especially Sheets on mobile — can present cleanly. The core logic is proven; this doc is the plan for rebuilding the same logic as a small, purpose-built app with real interaction design instead of a spreadsheet grid.</p>
   <p><strong>Single job of the app:</strong> let anyone in the group see, at a glance, which day this week has the most players free and what hours actually overlap — and let them update their own (or someone else's) availability in a couple of taps, from a phone, without an account.</p>
-  <p><strong>What pulling real group chat transcripts changed:</strong> the recurring weekly grid answers "when is everyone generally free" — but it turned out that's not the actual bottleneck. The real friction, visible directly in how the group already coordinates, is proposing a specific one-off session (rent a gym, hit an open-gym window, or meet at a park), tracking who's actually in against a headcount that matters for cost, and splitting the bill — all currently done by copy-pasting a numbered list in a group chat. That's captured below as <a href="#gap-analysis">Gap analysis</a> and a full <code>Session</code>/<code>Venue</code> data model, not treated as a someday nice-to-have. The two features (recurring availability, one-off sessions) don't share internal state, so the plan builds the grid first to validate the core tap-to-edit interaction, then layers Sessions on top without rework — see <a href="#phases">Build phases</a> for why that's a sequencing choice, not a scope cut.</p>
+  <p><strong>What pulling real group chat transcripts changed:</strong> the recurring weekly grid answers "when is everyone generally free" — but it turned out that's not the actual bottleneck. The real friction, visible directly in how the group already coordinates, is proposing a specific one-off session (rent a gym, hit an open-gym window, or meet at a park), tracking who's actually in against a headcount that matters for cost, and splitting the bill — all currently done by copy-pasting a numbered list in a group chat. That's captured below as <a href="#gap-analysis">Gap analysis</a> and a full <code>Session</code>/<code>Venue</code> data model, not treated as a someday nice-to-have. The two features (recurring availability, one-off sessions) don't share internal state, so the plan built the grid first to validate the core tap-to-edit interaction, then layered Sessions on top without rework — see <a href="#phases">Build phases</a> for why that was a sequencing choice, not a scope cut. Sessions &amp; Venues (Phase 3) has since shipped: propose/edit/delete a session, RSVP in/out, and a live cost-split + headcount check for rented-gym sessions, all rendered directly below the grid on the same page.</p>
   <p><strong>Team:</strong> Uncrowned Kings. Logo palette (teal, red, gold/amber, black) happens to line up closely with the app's existing dark-navy/amber/teal theme already used throughout this doc — worth carrying that through into the real UI rather than picking a separate palette.</p>
 </section>
 
@@ -307,6 +307,27 @@
       <div class="body">
         <strong>ARIA grid pattern over a semantic <code>&lt;table&gt;</code></strong>
         <p>The original <code>&lt;table&gt;</code>/<code>table-fixed</code> layout couldn't give per-breakpoint column sizing once the demo roster grew to a realistic ~15 rows (matching the real team's size, up from an earlier 8-player stub). Re-implemented as CSS Grid with explicit <code>role="table"/"row"/"columnheader"/"rowheader"/"cell"</code> attributes &mdash; same screen-reader table semantics, more layout flexibility.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="tag">Sessions page</div>
+      <div class="body">
+        <strong>No dedicated Sessions route &mdash; shares the grid page</strong>
+        <p><code>SessionsView</code> renders directly below the availability grid on the existing <code>/team/[slug]</code> page, instead of a separate <code>/team/[slug]/sessions</code> route. The two features share a device/identity context but not data; splitting into a second route would just add a navigation step for a single-page mobile app with room for both.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="tag">Venue admin</div>
+      <div class="body">
+        <strong>Server Action page, not a POST API route</strong>
+        <p><code>/admin/venues</code> (list) + <code>/admin/venues/new</code> (form &rarr; <code>createVenue</code> Server Action) implement the "admin-added only" decision without adding auth: an unguarded, unlinked route is enough obscurity for a ~15-person group, and a Server Action skips writing a separate request/response contract for a form only one person uses.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="tag">Session ownership</div>
+      <div class="body">
+        <strong>UI-gated Edit/Delete, not server-enforced</strong>
+        <p><code>Session.proposedById</code> records who proposed it; the Edit and Delete buttons only render when <code>proposedById === currentPlayerId</code>, but the <code>PATCH</code>/<code>DELETE</code> endpoints don't check this server-side. Matches the existing trust model &mdash; any write to <code>DateOverride</code> already trusts the caller's <code>playerId</code> &mdash; rather than partially bolting on enforcement for one endpoint.</p>
       </div>
     </div>
   </div>
@@ -424,7 +445,8 @@
     </div>
 
     <div>
-      <div style="font-size:11px; color:var(--text-mute); text-align:center; margin-bottom:6px;">4. Session proposal (Phase 3)</div>
+      <div style="font-size:11px; color:var(--text-mute); text-align:center; margin-bottom:6px;">4. Session proposal (Phase 3, shipped)</div>
+      <div style="font-size:9px; color:var(--text-mute); text-align:center; margin-bottom:6px;">Shipped simpler than this mockup: a single venue/date/from&ndash;time/to&ndash;time form, no multi-slot picker &mdash; see Routes &amp; API</div>
       <div style="width:190px; height:396px; border:1px solid var(--border-strong); border-radius:16px; background:var(--surface-2); padding:12px; display:flex; flex-direction:column; gap:7px;">
         <div style="font-size:12px; font-weight:700;">New session</div>
         <div style="font-size:9px; color:var(--text-mute);">Venue</div>
@@ -464,10 +486,11 @@
   <pre><code>// schema.prisma
 
 model Team {
-  id       String   @id @default(cuid())
-  slug     String   @unique   // the shareable URL, e.g. "uncrowned-kings"
+  id       String    @id @default(cuid())
+  slug     String    @unique   // the shareable URL, e.g. "uncrowned-kings"
   name     String
   players  Player[]
+  sessions Session[]         // live from Phase 3
 }
 
 model Player {
@@ -478,6 +501,7 @@ model Player {
   number     Int?           // jersey number, nullable — 0 is a valid value — live from Phase 1
   defaults   DayDefault[]
   overrides  DateOverride[]
+  rsvps      Rsvp[]         // live from Phase 3
 }
 
 enum Status {
@@ -512,7 +536,7 @@ model DateOverride {
   @@unique([playerId, date])
 }
 
-// --- Not in Phase 1/2. See "Gap analysis" below. ---
+// --- Phase 3, shipped. ---
 enum VenueType {
   RENTED_GYM  // booked and paid for, team has exclusive access, worth it only above minPlayers
   OPEN_GYM    // public gym time, no booking, show up and play as a team ("got next")
@@ -535,6 +559,7 @@ model Session {
   team         Team         @relation(fields: [teamId], references: [id])
   venueId      String?
   venue        Venue?       @relation(fields: [venueId], references: [id])
+  proposedById String?      // playerId of the proposer; null for legacy rows — gates Edit/Delete client-side only
   date         DateTime
   fromTime     String
   toTime       String
@@ -558,26 +583,26 @@ model Rsvp {
 
 <section id="gap-analysis">
   <h2>Gap analysis — real usage vs. the plan</h2>
-  <p>Group chat transcripts (Jul 17) surfaced coordination patterns the plan didn't account for: proposing a specific one-off session against external constraints (venue availability, cost, headcount threshold) &mdash; currently done by hand in chat. Distinct from the recurring Usual/This Week grid, not covered by Phase 1 or 2.</p>
+  <p>Group chat transcripts (Jul 17) surfaced coordination patterns the plan didn't account for: proposing a specific one-off session against external constraints (venue availability, cost, headcount threshold) &mdash; previously done by hand in chat, now addressed by the shipped Phase 3 Sessions &amp; Venues model.</p>
   <div class="card">
     <table>
       <tr><th>What's happening in chat</th><th>Covered by current model?</th></tr>
-      <tr><td>Propose a specific date + time slot (not a recurring pattern)</td><td><span class="badge coral">Gap</span> &mdash; addressed by <code>Session</code> model above</td></tr>
-      <tr><td>Choosing between externally-offered slots (7&ndash;9 vs 8&ndash;10)</td><td><span class="badge coral">Gap</span> &mdash; Team Window only reflects internal overlap, not venue options</td></tr>
-      <tr><td>&quot;Need at least 10 of us&quot; threshold (only matters when paying to rent)</td><td><span class="badge coral">Gap</span> &mdash; addressed by <code>Session.minPlayers</code>, <code>RENTED_GYM</code> only</td></tr>
-      <tr><td>Cost split ($100 &divide; confirmed count)</td><td><span class="badge coral">Gap</span> &mdash; addressed by <code>Session.costTotal</code>, <code>RENTED_GYM</code> only</td></tr>
-      <tr><td>Three venue types: rented gym (exclusive, paid) vs open gym (public, casual, team plays as a unit) vs park (free, anytime)</td><td><span class="badge amber">Partially unblocked</span> &mdash; one known venue (INSZN, ~$100/2hrs, RENTED_GYM) from the transcript. Address, hours, and other venues still needed.</td></tr>
-      <tr><td>Who's allowed to add a venue to the app</td><td><span class="badge amber">Decision made</span> &mdash; see Decisions log: admin-added only for now</td></tr>
-      <tr><td>Players skipping a league/venue because it's too far to get to consistently</td><td><span class="badge amber">Deferred, not built</span> &mdash; <code>Venue.address</code> field added now; a real distance-from-player feature (e.g. Maps API) is intentionally not scoped yet</td></tr>
+      <tr><td>Propose a specific date + time slot (not a recurring pattern)</td><td><span class="badge teal">Shipped</span> &mdash; <code>Session</code> model, propose form on <code>/team/[slug]</code></td></tr>
+      <tr><td>Choosing between externally-offered slots (7&ndash;9 vs 8&ndash;10)</td><td><span class="badge coral">Gap</span> &mdash; Team Window only reflects internal overlap; a session is a single proposed slot, not a set of options to compare (editable after the fact, but no side-by-side picker)</td></tr>
+      <tr><td>&quot;Need at least 10 of us&quot; threshold (only matters when paying to rent)</td><td><span class="badge teal">Shipped</span> &mdash; <code>Session.minPlayers</code>, <code>RENTED_GYM</code> only, live RSVP-count-vs-threshold display</td></tr>
+      <tr><td>Cost split ($100 &divide; confirmed count)</td><td><span class="badge teal">Shipped</span> &mdash; <code>Session.costTotal</code>, <code>RENTED_GYM</code> only, live cost/person now + cost at <code>minPlayers</code></td></tr>
+      <tr><td>Three venue types: rented gym (exclusive, paid) vs open gym (public, casual, team plays as a unit) vs park (free, anytime)</td><td><span class="badge teal">Shipped</span>, one entry seeded &mdash; INSZN (~$100/2hrs, RENTED_GYM) via <code>prisma/seed.ts</code>; more venues addable through <code>/admin/venues/new</code></td></tr>
+      <tr><td>Who's allowed to add a venue to the app</td><td><span class="badge teal">Shipped</span> &mdash; admin-added only, via unguarded <code>/admin/venues/new</code> Server Action route</td></tr>
+      <tr><td>Players skipping a league/venue because it's too far to get to consistently</td><td><span class="badge amber">Deferred, not built</span> &mdash; <code>Venue.address</code> is live and shown on session cards; a real distance-from-player feature (e.g. Maps API) is intentionally not scoped yet</td></tr>
       <tr><td>Full roster (Trevor appeared in chat, wasn't on the list given earlier)</td><td><span class="badge amber">Action needed</span> &mdash; pull the authoritative roster from the group directly, don't reconstruct from scattered messages</td></tr>
       <tr><td>&quot;I'm out this Sunday but otherwise usual&quot; (Moody)</td><td><span class="badge teal">Covered</span> &mdash; This Week override falls back to Usual</td></tr>
-      <tr><td>Negotiating a day before committing (Murph)</td><td><span class="badge teal">Covered</span> &mdash; editable up until it's set</td></tr>
+      <tr><td>Negotiating a day before committing (Murph)</td><td><span class="badge teal">Covered</span> &mdash; editable up until it's set; a proposed session can also be edited in place</td></tr>
     </table>
   </div>
   <div class="card out-of-scope">
-    <p><strong>No longer fully blocking:</strong> INSZN is a real, usable first venue entry (name, type, approximate cost). Address and hours can be filled in when convenient. Additional venues get added the same way as they come up &mdash; this doesn't need to be complete before Phase 3 starts.</p>
+    <p><strong>Shipped:</strong> INSZN is a real, usable first venue entry (name, type, approximate cost). Address and hours can be filled in when convenient. Additional venues get added the same way as they come up via <code>/admin/venues/new</code>.</p>
   </div>
-  <p><strong>Recommendation:</strong> ship Phase 1/2 (recurring grid) first to validate the core tap-to-edit interaction on real usage. Sessions is likely higher-value than further grid polish, and is no longer fully blocked &mdash; treat it as Phase 3, with Phase 4 polish items only after that.</p>
+  <p><strong>Recommendation:</strong> Phases 1&ndash;3 have shipped (recurring grid, then Sessions &amp; venues). Next up is Phase 4 polish &mdash; see Build phases.</p>
 </section>
 
 <section id="architecture">
@@ -590,7 +615,7 @@ model Rsvp {
         <li><code>Prisma</code> + <code>Neon</code> (Postgres)</li>
         <li><code>Tailwind</code> for styling</li>
         <li>Deployed to <code>Vercel</code></li>
-        <li>No auth library &mdash; identity is client-stored, no <code>NextAuth</code> needed for Phase 1</li>
+        <li>No auth library &mdash; identity is client-stored, no <code>NextAuth</code> needed in V1</li>
       </ul>
     </div>
     <div class="card">
@@ -608,8 +633,9 @@ model Rsvp {
   <h2>Routes &amp; API</h2>
   <table>
     <tr><th>Route</th><th>Purpose</th></tr>
-    <tr><td><code>/team/[slug]</code></td><td>Home grid — This Week / Usual toggle, tap-to-edit</td></tr>
-    <tr><td><code>/team/[slug]/whoami</code></td><td>First-visit identity picker (or a modal, not necessarily a separate route)</td></tr>
+    <tr><td><code>/team/[slug]</code></td><td>Home — grid (This Week / Usual toggle, tap-to-edit) with the Sessions list rendered below it on the same page; also renders the first-visit <code>NamePicker</code> when no valid identity is stored</td></tr>
+    <tr><td><code>/admin/venues</code></td><td>Venue list (Server Component, reads <code>Venue</code> directly)</td></tr>
+    <tr><td><code>/admin/venues/new</code></td><td>Add-venue form &rarr; <code>createVenue</code> Server Action. Unguarded, unlinked from the main UI &mdash; "admin-added only" by obscurity, not auth</td></tr>
   </table>
   <table style="margin-top:16px;">
     <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
@@ -617,7 +643,12 @@ model Rsvp {
     <tr><td><code>/api/teams/[slug]/players/[playerId]/default</code></td><td>PATCH</td><td>Update a Usual Schedule day</td></tr>
     <tr><td><code>/api/teams/[slug]/players/[playerId]/override</code></td><td>PATCH</td><td>Update a This Week override</td></tr>
     <tr><td><code>/api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD</code></td><td>DELETE</td><td>Reset to Usual &mdash; clears the override for that date, idempotent</td></tr>
-    <tr><td><code>/api/teams/[slug]/players</code></td><td>POST</td><td>Add a new player to the roster</td></tr>
+    <tr><td><code>/api/teams/[slug]/players</code></td><td>POST</td><td><span class="badge amber">Planned, Phase 4</span> &mdash; add a new player to the roster; not yet built</td></tr>
+    <tr><td><code>/api/teams/[slug]/sessions</code></td><td>GET</td><td>List all sessions for the team, with venue + RSVPs</td></tr>
+    <tr><td><code>/api/teams/[slug]/sessions</code></td><td>POST</td><td>Propose a new session (venue, date, time range, and for <code>RENTED_GYM</code>, cost + minPlayers)</td></tr>
+    <tr><td><code>/api/teams/[slug]/sessions/[sessionId]</code></td><td>PATCH</td><td>Edit an existing session in place &mdash; whole-record replace, RSVPs untouched. No server-side proposer check (UI-only gate)</td></tr>
+    <tr><td><code>/api/teams/[slug]/sessions/[sessionId]</code></td><td>DELETE</td><td>Delete a session; RSVPs cascade-delete via the schema relation</td></tr>
+    <tr><td><code>/api/teams/[slug]/sessions/[sessionId]/rsvp</code></td><td>PUT</td><td>Upsert the calling player's RSVP (<code>ANYTIME</code> = in, <code>UNAVAILABLE</code> = out); returns the full updated session</td></tr>
   </table>
 </section>
 
@@ -640,8 +671,8 @@ model Rsvp {
   <div class="phase-row">
     <div class="rail"><div class="dot">3</div><div class="stem"></div></div>
     <div class="content">
-      <h3>Sessions &amp; venues <span class="badge amber" style="margin-left:6px;">Partially unblocked</span></h3>
-      <p>Propose a one-off session at a rented gym, open gym, or park. RSVP, and for rented-gym sessions, a live cost split and a minimum-headcount check before it's worth booking. INSZN is a usable first venue; more get added as they come up, admin-added for now.</p>
+      <h3>Sessions &amp; venues <span class="badge teal" style="margin-left:6px;">Done</span></h3>
+      <p>Propose, edit, and delete a one-off session at a rented gym, open gym, or park. RSVP in/out, and for rented-gym sessions, a live cost split and a minimum-headcount check before it's worth booking. INSZN is seeded as the first venue; more get added via <code>/admin/venues/new</code> as they come up, admin-added only.</p>
     </div>
   </div>
   <div class="phase-row">

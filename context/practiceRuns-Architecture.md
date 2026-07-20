@@ -4,7 +4,7 @@
 >
 > Scope: covers the full planned system through Phase 5, including subsystems not yet built. Anything not yet implemented is marked **`[Planned]`**.
 >
-> Status: Phase 1 (core availability grid) shipped. Phase 2 not started. Update this file when an architecture decision changes — don't let it drift from what's actually built.
+> Status: Phases 1–3 shipped (core availability grid, This Week overrides/team window, Sessions & Venues). Phase 4 not started. Update this file when an architecture decision changes — don't let it drift from what's actually built.
 
 ---
 
@@ -35,8 +35,8 @@ graph TB
     App["Practice Runs<br/>Next.js app on Vercel"]
     DB[("Neon Postgres")]
 
-    Player -->|"HTTPS · tap-to-edit grid"| App
-    Admin -->|"HTTPS · venue form [Planned Phase 3]"| App
+    Player -->|"HTTPS · tap-to-edit grid, propose/RSVP sessions"| App
+    Admin -->|"HTTPS · venue form (/admin/venues/new)"| App
     Recruiter -->|"HTTPS · /team/demo only"| App
     App -->|"Prisma / SQL"| DB
 ```
@@ -67,7 +67,7 @@ graph TB
 
     subgraph Data["Data Layer"]
         Prisma["Prisma Client"]
-        Neon[("Neon Postgres<br/>Team · Player · DayDefault · DateOverride<br/>[Planned] Venue · Session · Rsvp")]
+        Neon[("Neon Postgres<br/>Team · Player · DayDefault · DateOverride<br/>Venue · Session · Rsvp")]
     end
 
     ClientComponents <-->|reads playerId, tour flag| LocalStorage
@@ -83,7 +83,7 @@ graph TB
 
 **Why this shape:**
 - **Server Components fetch directly with Prisma** — no API round-trip for the initial grid render (see `coding-standards.md`). API routes exist only for the client-initiated *writes* (cell edits, add-player) and any future integration surface (webhooks, Phase 5 auth callbacks).
-- **`src/lib/` holds the two pieces of real domain logic** — effective-grid resolution (override-falls-back-to-default) and team-window calculation (MAX/MIN overlap). Both are pure functions over data already fetched, callable from Server Components and API routes alike, so the logic exists in exactly one place.
+- **`src/lib/` holds the real domain logic** — effective-grid resolution (override-falls-back-to-default), team-window calculation (MAX/MIN overlap), and, since Phase 3, `sessions.ts`'s `sessionInclude`/`toSessionResponse` (the shared Prisma include + response-shaping used by every Sessions route, extracted after it was duplicated three times across GET/POST/RSVP). All are pure functions over data already fetched, callable from Server Components and API routes alike. The one exception: cost-per-person and headcount-vs-`minPlayers` math lives inline in `SessionsView.tsx`, not `src/lib/` — it's cheap, purely presentational arithmetic over data the API already returns, so extracting it bought no reuse.
 - **`localStorage` is a genuine architectural boundary**, not an implementation detail: it's the entire identity subsystem for V1. No server-side session, no cookie, no JWT.
 
 ---
@@ -97,10 +97,10 @@ erDiagram
     Team ||--o{ Player : has
     Player ||--o{ DayDefault : has
     Player ||--o{ DateOverride : has
-    Team ||--o{ Session : "[Planned]"
-    Venue ||--o{ Session : "[Planned]"
-    Session ||--o{ Rsvp : "[Planned]"
-    Player ||--o{ Rsvp : "[Planned]"
+    Team ||--o{ Session : has
+    Venue ||--o{ Session : has
+    Session ||--o{ Rsvp : has
+    Player ||--o{ Rsvp : has
 
     Team {
         string id PK
@@ -142,6 +142,7 @@ erDiagram
         string id PK
         string teamId FK
         string venueId FK
+        string proposedById "nullable, gates Edit/Delete client-side"
         datetime date
         int costTotal
         int minPlayers
@@ -154,7 +155,7 @@ erDiagram
     }
 ```
 
-Two bounded contexts share the database but never join across each other: **{Team, Player, DayDefault, DateOverride}** (recurring availability) and **{Venue, Session, Rsvp}** (`[Planned]` one-off sessions). `Session.teamId` and `Rsvp.playerId` are the only links between them — deliberate, see [§7](#7-decision-log-architecture-relevant-only).
+Two bounded contexts share the database but never join across each other: **{Team, Player, DayDefault, DateOverride}** (recurring availability) and **{Venue, Session, Rsvp}** (one-off sessions, shipped in Phase 3). `Session.teamId` and `Rsvp.playerId` are the only links between them — deliberate, see [§7](#7-decision-log-architecture-relevant-only).
 
 ### 4.2 Read-time computation, not stored derived state
 
@@ -178,7 +179,7 @@ flowchart LR
 |---|---|---|
 | 1 | Neon + Prisma, `Team`/`Player`/`DayDefault` | DB from day one — the spreadsheet already proved multi-user structured data is required; no reason to prototype in-memory first |
 | 2 | `DateOverride` | Needs Phase 1's grid interaction proven before adding a second write target |
-| 3 `[Planned]` | `Venue`, `Session`, `Rsvp` | Deliberately deferred — validates the core tap-to-edit interaction on real usage before adding a second bounded context |
+| 3 — done | `Venue`, `Session`, `Rsvp` | Deliberately deferred until now — validated the core tap-to-edit interaction on real usage before adding a second bounded context |
 | 5 `[Planned]` | NextAuth tables (accounts/sessions) via Prisma adapter | Only added once the Phase 5 trigger is met — see [§6](#6-identity--auth-architecture) |
 
 ---
@@ -218,7 +219,7 @@ sequenceDiagram
     User->>Cell: taps Save in edit drawer
     Cell->>Cell: update local state immediately, close drawer
     Cell->>API: PATCH (playerId, day/date, status, times, note)
-    API->>API: validate with Zod
+    API->>API: validate required fields (manual checks, not Zod — see §8)
     alt valid
         API->>DB: upsert DayDefault or DateOverride
         DB-->>API: ok
@@ -233,6 +234,32 @@ sequenceDiagram
 The **write target is chosen by which endpoint is called**, not by branching logic in one endpoint — `/default` vs `/override` — which is the server-side expression of the "one grid, toggle changes write target" decision.
 
 **Reverting an override:** `DELETE .../override?date=YYYY-MM-DD` is the inverse of the override `PATCH` — it removes the `DateOverride` row (`deleteMany`, idempotent) rather than writing a sentinel "unset" value, so the read path's existing fallback (missing row → use `DayDefault`) handles it with no special-casing. Same optimistic-then-reconcile shape as the write path above: the edit drawer's "Reset to Usual" button flips the cell back to its inherited value immediately, then confirms against the server.
+
+### 5.3 Write path — session propose/edit/RSVP/delete (Phase 3)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant View as SessionsView<br/>(Client Component)
+    participant API as Route Handler<br/>(sessions/[id] or .../rsvp)
+    participant DB as Neon (via Prisma)
+
+    User->>View: fills propose/edit form, or taps In/Out
+    View->>View: RSVP only — update local state immediately
+    View->>API: POST/PATCH sessions, or PUT .../rsvp
+    API->>API: validate required fields (manual checks, not Zod)
+    alt valid
+        API->>DB: create/update Session, or upsert Rsvp
+        DB-->>API: full session row (+ venue, rsvps)
+        API-->>View: 200/201 with SessionResponse
+        View->>View: replace session in local state with server response
+    else invalid / failure
+        API-->>View: 4xx
+        View->>View: RSVP reverts optimistic update + shows inline error;<br/>propose/edit form keeps user input and shows inline error
+    end
+```
+
+Three things differ from the Phase 1/2 write path above: **(1)** the propose/edit form is *not* optimistic — it waits for the server response before closing, unlike an RSVP tap or a grid cell save, because a session's full shape (venue, cost, minPlayers) is worth confirming before dismissing the form; **(2)** `PATCH .../sessions/[sessionId]` is a whole-record replace, mirroring the `POST` body shape, and never touches the `rsvps` relation, so existing RSVPs survive an edit untouched; **(3)** `DELETE .../sessions/[sessionId]` cascade-deletes its `Rsvp` rows via the schema relation (`onDelete: Cascade`), not an application-level cleanup step. None of the Sessions endpoints check that the caller is the session's `proposedById` — the Edit/Delete buttons are hidden client-side for non-proposers, but the API trusts the caller, consistent with the rest of V1's identity model (see [§6](#6-identity--auth-architecture)).
 
 ---
 
@@ -281,6 +308,9 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Client-stored identity (`localStorage`), no server session | NextAuth from day one | Zero auth build cost for a trust-based group of 15; revisit only when the group boundary actually changes |
 | Optimistic writes with client-side revert | Confirm-then-render (wait for server before updating UI) | Save failures are rare and reversible; optimism matches the "few taps, no friction" product goal |
 | Sessions/Venues as a separate data model (own tables, only weak FK links to Team/Player) | Extend `DayDefault`/`DateOverride` with session-like fields | The two features don't share state or lifecycle; coupling them would force the grid schema to carry Sessions' concerns (cost, RSVP, headcount) permanently |
+| Sessions rendered on the existing `/team/[slug]` route, no `/team/[slug]/sessions` page | A dedicated Sessions route | Same device/identity context, no data sharing needed at the routing layer either; a second route is pure navigation overhead for a single-page mobile app |
+| Venue creation as a Server Action behind an unguarded `/admin/venues/new` page, not a POST API route | A `/api/.../venues` POST endpoint | No client outside the admin form ever needs to create a venue, so a Server Action avoids writing and maintaining a request/response contract nothing else calls |
+| Session `Edit`/`Delete` authorization is UI-only (`proposedById === currentPlayerId` gates the buttons; the API doesn't check it) | Server-side ownership check on `PATCH`/`DELETE` | Consistent with every other V1 write path (`DayDefault`/`DateOverride`/`Rsvp` all trust the caller's `playerId` as-is) — see [§6.1](#61-v1v4-client-stored-identity-no-server-side-auth). Partial enforcement on one endpoint would be a false sense of security, not real access control |
 | Manual pull-to-refresh / refetch-on-focus | WebSocket or polling-based real-time sync | No evidence of a staleness problem at this scale; real-time infra is pure added complexity until it's a real complaint |
 | Prisma + `prisma migrate dev` (not `db push`) | Schema-less or push-based migrations | Explicit, reviewable migration history matters even for a small app — see `coding-standards.md` |
 | Demo team as data isolation (`Team.slug = "demo"`) | Auth/login wall in front of the whole app | Solves the actual risk (recruiter mutates real data) without adding auth scope to Phase 1 |
@@ -292,9 +322,9 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 
 | Concern | Approach | Notes |
 |---|---|---|
-| **Validation** | Zod schemas at every Server Action / API route boundary | Per `coding-standards.md`; server components trust Prisma's return types internally |
+| **Validation** | Manual required-field checks (`if (!date \|\| ...)`) at every Server Action / API route boundary, not Zod schemas | `coding-standards.md` calls for Zod; every route shipped so far (Phase 1–3) uses manual checks instead — worth reconciling one way or the other before Phase 4 adds more routes |
 | **Error handling** | Try/catch in actions/routes, `{ success, data, error }` return shape, revert-and-inline-error on the client | No toasts/modals — the reverted cell + inline message *is* the error UI |
-| **Consistency** | No distributed transactions needed (single DB); Prisma transactions used only for multi-row writes (e.g. `[Planned]` Rsvp + Session count checks) | |
+| **Consistency** | No distributed transactions needed (single DB); no Prisma `$transaction` calls anywhere yet — every write (including RSVP's `upsert` and Session's cascade-delete of its `Rsvp` rows) is a single Prisma call or a DB-level `onDelete: Cascade`, not an app-level multi-statement transaction | |
 | **Sync/staleness** | Pull-to-refresh + refetch-on-focus only | Explicitly not real-time — see [§1](#1-guiding-principles) principle 7 |
 | **Accessibility** | Availability grid uses explicit ARIA `role="grid"` markup (table/row/columnheader/rowheader/cell) over CSS Grid, not a bare `<div>` soup | Keeps screen-reader table semantics equivalent to a real `<table>` while allowing the responsive column sizing a `<table>` couldn't give at the ~15-row demo roster size |
 | **Security posture (V1)** | No auth; trust-based; portfolio risk handled by data isolation, not access control | Re-evaluate only at the Phase 5 trigger |
@@ -345,9 +375,9 @@ gantt
     section Phase 1
     Next.js + Prisma + Neon, RSC reads, DayDefault only :done, p1, 0, 1
     section Phase 2
-    DateOverride + read-time effective/window calc :p2, 1, 2
-    section Phase 3 [Planned]
-    Venue/Session/Rsvp bounded context added :p3, 2, 3
+    DateOverride + read-time effective/window calc :done, p2, 1, 2
+    section Phase 3
+    Venue/Session/Rsvp bounded context added :done, p3, 2, 3
     section Phase 4 [Planned]
     Demo team isolation + Cron reset job :p4, 3, 4
     section Phase 5 [Planned, gated]
