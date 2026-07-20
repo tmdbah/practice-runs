@@ -295,6 +295,20 @@
         <p>Phase 2 shipped the team window as a row of tiny per-day boxes inside the grid table &mdash; it worked, but was hard to read at mobile widths (the primary use case) and wasn't interactive. Replaced with a standalone card &mdash; closer to this doc's original mockup below &mdash; that defaults to the best-availability day and pages through the rest via always-visible arrow buttons, native touch swipe, and tappable dot indicators. A static single-best-day card (the mockup taken literally) was considered and rejected: it would hide the other 6 days' data the app already computes for free. The underlying calculation is unchanged &mdash; this is a display-only change.</p>
       </div>
     </div>
+    <div class="decision">
+      <div class="tag">Reset to Usual</div>
+      <div class="body">
+        <strong>Explicit undo for an override, not just re-editing it</strong>
+        <p>Once a player explicitly overrides a This Week day, there was no way back to "just inherit Usual" short of manually re-entering Usual's exact values &mdash; easy to get subtly wrong. A <code>DELETE .../override?date=YYYY-MM-DD</code> endpoint removes the <code>DateOverride</code> row outright (idempotent, no-op if nothing to delete), and the edit drawer shows a "Reset to Usual" button whenever the open cell is already overridden. This is the correct semantic undo &mdash; it matches the existing invariant that a missing override row means "use the default," rather than introducing a separate "unset" state to reconcile.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="tag">Grid markup</div>
+      <div class="body">
+        <strong>ARIA grid pattern over a semantic <code>&lt;table&gt;</code></strong>
+        <p>The original <code>&lt;table&gt;</code>/<code>table-fixed</code> layout couldn't give per-breakpoint column sizing once the demo roster grew to a realistic ~15 rows (matching the real team's size, up from an earlier 8-player stub). Re-implemented as CSS Grid with explicit <code>role="table"/"row"/"columnheader"/"rowheader"/"cell"</code> attributes &mdash; same screen-reader table semantics, more layout flexibility.</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -602,6 +616,7 @@ model Rsvp {
     <tr><td><code>/api/teams/[slug]</code></td><td>GET</td><td>Fetch roster + resolved Effective grid + team window per day</td></tr>
     <tr><td><code>/api/teams/[slug]/players/[playerId]/default</code></td><td>PATCH</td><td>Update a Usual Schedule day</td></tr>
     <tr><td><code>/api/teams/[slug]/players/[playerId]/override</code></td><td>PATCH</td><td>Update a This Week override</td></tr>
+    <tr><td><code>/api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD</code></td><td>DELETE</td><td>Reset to Usual &mdash; clears the override for that date, idempotent</td></tr>
     <tr><td><code>/api/teams/[slug]/players</code></td><td>POST</td><td>Add a new player to the roster</td></tr>
   </table>
 </section>

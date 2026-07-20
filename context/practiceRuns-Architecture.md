@@ -232,6 +232,8 @@ sequenceDiagram
 
 The **write target is chosen by which endpoint is called**, not by branching logic in one endpoint — `/default` vs `/override` — which is the server-side expression of the "one grid, toggle changes write target" decision.
 
+**Reverting an override:** `DELETE .../override?date=YYYY-MM-DD` is the inverse of the override `PATCH` — it removes the `DateOverride` row (`deleteMany`, idempotent) rather than writing a sentinel "unset" value, so the read path's existing fallback (missing row → use `DayDefault`) handles it with no special-casing. Same optimistic-then-reconcile shape as the write path above: the edit drawer's "Reset to Usual" button flips the cell back to its inherited value immediately, then confirms against the server.
+
 ---
 
 ## 6. Identity & Auth Architecture
@@ -282,6 +284,7 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Manual pull-to-refresh / refetch-on-focus | WebSocket or polling-based real-time sync | No evidence of a staleness problem at this scale; real-time infra is pure added complexity until it's a real complaint |
 | Prisma + `prisma migrate dev` (not `db push`) | Schema-less or push-based migrations | Explicit, reviewable migration history matters even for a small app — see `coding-standards.md` |
 | Demo team as data isolation (`Team.slug = "demo"`) | Auth/login wall in front of the whole app | Solves the actual risk (recruiter mutates real data) without adding auth scope to Phase 1 |
+| Availability grid as CSS Grid + ARIA `role="grid"` pattern (`div[role=table/row/columnheader/rowheader/cell]`) | Semantic HTML `<table>` (original Phase 1/2 implementation) | `<table>`/`table-fixed` layout didn't give per-breakpoint column control; CSS Grid does, while the explicit ARIA roles preserve the same screen-reader table semantics a real `<table>` would have provided |
 
 ---
 
@@ -293,6 +296,7 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | **Error handling** | Try/catch in actions/routes, `{ success, data, error }` return shape, revert-and-inline-error on the client | No toasts/modals — the reverted cell + inline message *is* the error UI |
 | **Consistency** | No distributed transactions needed (single DB); Prisma transactions used only for multi-row writes (e.g. `[Planned]` Rsvp + Session count checks) | |
 | **Sync/staleness** | Pull-to-refresh + refetch-on-focus only | Explicitly not real-time — see [§1](#1-guiding-principles) principle 7 |
+| **Accessibility** | Availability grid uses explicit ARIA `role="grid"` markup (table/row/columnheader/rowheader/cell) over CSS Grid, not a bare `<div>` soup | Keeps screen-reader table semantics equivalent to a real `<table>` while allowing the responsive column sizing a `<table>` couldn't give at the ~15-row demo roster size |
 | **Security posture (V1)** | No auth; trust-based; portfolio risk handled by data isolation, not access control | Re-evaluate only at the Phase 5 trigger |
 | **Scalability** | Not a design goal — Vercel + Neon serverless defaults are already far beyond a 15-person group's needs | No caching layer, no CDN-level data caching planned |
 | **Observability** | Vercel default request logs; no APM/tracing planned | Reconsider if Sessions (Phase 3) introduces payment-adjacent logic worth auditing |

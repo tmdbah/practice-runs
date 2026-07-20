@@ -219,7 +219,7 @@ model Rsvp {
 | First visit — name picker | Pick your name from the roster once; remembered on this device |
 | Onboarding walkthrough (Phase 4) | Short, dismissible tour shown once on first visit after the name picker — spotlights the grid, a cell tap, the This Week/Usual toggle, and the team window readout. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
 | Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live Team Window carousel card (defaults to best-availability day; arrows + swipe + dot indicators page through the rest) |
-| Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save |
+| Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save. This Week mode only, and only when the cell is already overridden: a "Reset to Usual" button clears the `DateOverride` and reverts the day to inheriting `DayDefault` |
 | Session proposal (Phase 3) | Venue + date + time slots, RSVP count vs. minPlayers, live cost/person now vs. at threshold, "I'm in" |
 
 ### Grid Cell States
@@ -251,6 +251,7 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 | `/api/teams/[slug]` | GET | Fetch roster + resolved Effective grid + team window per day |
 | `/api/teams/[slug]/players/[playerId]/default` | PATCH | Update a Usual Schedule day |
 | `/api/teams/[slug]/players/[playerId]/override` | PATCH | Update a This Week override |
+| `/api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD` | DELETE | Clear a This Week override for a date ("Reset to Usual"), reverting that day to inherit `DayDefault`. Idempotent — no-op if no override exists |
 | `/api/teams/[slug]/players` | POST | Add a new player to the roster |
 
 ### Team Window Calculation
@@ -273,6 +274,8 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Min players | Open question — kept as an editable per-session field | Team needs to agree on the real headcount threshold (8? 10?); varies by venue cost |
 | Onboarding | First-visit walkthrough, dismissible, `localStorage`-persisted (`hasSeenTour`) | Mirrors the identity mechanism — no accounts, no DB table; new players shouldn't need to ask the group chat what to do |
 | Team Window display | Single swipeable card (always-visible arrows + native touch swipe + tappable dot indicators), defaults to the best-availability day | Phase 2 shipped it as a row of tiny per-day boxes in the grid table; unreadable at mobile widths (the primary use case) and not interactive. A static single-best-day card (closer to the original mockup) was considered but rejected — it would hide the other 6 days' data the app already computes for free. Calculation (`computeWindowForDate`) is unchanged; this is a display-only change. See `feature-team-window-carousel-spec.md` |
+| Reset to Usual | `DELETE /override` clears a `DateOverride` row; edit drawer shows a "Reset to Usual" button only when the open cell is already overridden (This Week mode only) | Once a player has explicitly overridden a day, there was no way back to "just inherit Usual" short of manually re-entering Usual's exact values — error-prone and easy to get subtly wrong (times off by a few minutes, wrong status). Deleting the override row is the correct semantic "undo," matching the existing invariant that a missing `DateOverride` means "use the default" |
+| Grid markup | Availability grid re-implemented with CSS Grid + explicit ARIA roles (`div[role=table/row/columnheader/rowheader/cell]`) instead of a semantic HTML `<table>` | Same screen-reader semantics as a real `<table>`, but CSS Grid gives the per-breakpoint column sizing (`lg:` widening at the iPad Mini breakpoint) that `table-fixed` couldn't do cleanly. Prompted by testing the grid with the demo roster expanded to a realistic ~15 rows |
 
 ---
 
