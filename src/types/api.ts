@@ -36,7 +36,7 @@ export interface PlayerRow {
 }
 
 export interface TeamGridResponse {
-  team: { slug: string; name: string };
+  team: { id: string; slug: string; name: string };
   players: PlayerRow[];
   teamWindows: TeamWindow[]; // length 7, one per upcoming date
 }

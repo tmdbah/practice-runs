@@ -154,7 +154,7 @@ export async function getTeamGrid(
   });
 
   return {
-    team: { slug: team.slug, name: team.name },
+    team: { id: team.id, slug: team.slug, name: team.name },
     players,
     teamWindows,
   };

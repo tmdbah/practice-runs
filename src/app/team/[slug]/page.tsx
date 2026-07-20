@@ -2,9 +2,8 @@ import type { JSX } from "react";
 import { notFound } from "next/navigation";
 import { TeamGrid } from "@/components/TeamGrid";
 import { getTeamGrid } from "@/lib/teams";
-import { prisma } from "@/lib/prisma";
-import { sessionInclude, toSessionResponse } from "@/lib/sessions";
-import type { VenueSummary } from "@/types/api";
+import { getSessionsForTeam } from "@/lib/sessions";
+import { getVenues } from "@/lib/venues";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -27,29 +26,10 @@ export default async function TeamPage({
     notFound();
   }
 
-  const team = await prisma.team.findUnique({ where: { slug } });
-
-  const [rawSessions, rawVenues] = await Promise.all([
-    team
-      ? prisma.session.findMany({
-          where: { teamId: team.id },
-          orderBy: { date: "asc" },
-          include: sessionInclude,
-        })
-      : Promise.resolve([]),
-    prisma.venue.findMany({ orderBy: { name: "asc" } }),
+  const [sessions, venues] = await Promise.all([
+    getSessionsForTeam(data.team.id),
+    getVenues(),
   ]);
-
-  const sessions = rawSessions.map(toSessionResponse);
-
-  const venues: VenueSummary[] = rawVenues.map((v) => ({
-    id: v.id,
-    name: v.name,
-    type: v.type,
-    address: v.address,
-    bookingUrl: v.bookingUrl,
-    costPerSession: v.costPerSession,
-  }));
 
   return <TeamGrid data={data} initialSessions={sessions} venues={venues} />;
 }

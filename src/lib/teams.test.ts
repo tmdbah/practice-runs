@@ -67,7 +67,11 @@ describe("getTeamGrid", () => {
 
     const result = await getTeamGrid("demo-team");
 
-    expect(result?.team).toEqual({ slug: "demo-team", name: "Demo Squad" });
+    expect(result?.team).toEqual({
+      id: "team-1",
+      slug: "demo-team",
+      name: "Demo Squad",
+    });
     expect(result?.players).toHaveLength(1);
     expect(result?.players[0].name).toBe("Darius");
     expect(result?.players[0].number).toBe(5);

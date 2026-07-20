@@ -1,5 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { toSessionResponse } from "@/lib/sessions";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    session: { findMany: vi.fn() },
+  },
+}));
+
+import { toSessionResponse, getSessionsForTeam } from "@/lib/sessions";
+import { prisma } from "@/lib/prisma";
+
+const mockSessionFindMany = vi.mocked(prisma.session.findMany);
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -99,5 +109,40 @@ describe("toSessionResponse", () => {
       makeSession({ proposedById: null }) as never,
     );
     expect(result.proposedById).toBeNull();
+  });
+});
+
+describe("getSessionsForTeam", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should query sessions scoped to the given teamId, ordered by date", async () => {
+    mockSessionFindMany.mockResolvedValueOnce([makeSession()] as never);
+
+    await getSessionsForTeam("team1");
+
+    expect(mockSessionFindMany).toHaveBeenCalledWith({
+      where: { teamId: "team1" },
+      orderBy: { date: "asc" },
+      include: expect.any(Object),
+    });
+  });
+
+  it("should map results through toSessionResponse", async () => {
+    mockSessionFindMany.mockResolvedValueOnce([makeSession()] as never);
+
+    const result = await getSessionsForTeam("team1");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("s1");
+  });
+
+  it("should return an empty array when the team has no sessions", async () => {
+    mockSessionFindMany.mockResolvedValueOnce([]);
+
+    const result = await getSessionsForTeam("team1");
+
+    expect(result).toEqual([]);
   });
 });

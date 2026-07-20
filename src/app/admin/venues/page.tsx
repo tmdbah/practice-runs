@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getVenues } from "@/lib/venues";
 
 const VENUE_TYPE_LABELS: Record<string, string> = {
   RENTED_GYM: "Rented Gym",
@@ -8,7 +8,7 @@ const VENUE_TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function AdminVenuesPage(): Promise<React.ReactElement> {
-  const venues = await prisma.venue.findMany({ orderBy: { name: "asc" } });
+  const venues = await getVenues();
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6 max-w-lg mx-auto">

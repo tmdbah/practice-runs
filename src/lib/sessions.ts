@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SessionResponse } from "@/types/api";
 
@@ -38,4 +39,17 @@ export function toSessionResponse(
       status: r.status,
     })),
   };
+}
+
+/** Fetches all sessions for a team, ordered by date, mapped to the API response shape. */
+export async function getSessionsForTeam(
+  teamId: string,
+): Promise<SessionResponse[]> {
+  const sessions = await prisma.session.findMany({
+    where: { teamId },
+    orderBy: { date: "asc" },
+    include: sessionInclude,
+  });
+
+  return sessions.map(toSessionResponse);
 }
