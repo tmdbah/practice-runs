@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { TeamGrid } from "@/components/TeamGrid";
 import { getTeamGrid } from "@/lib/teams";
 import { prisma } from "@/lib/prisma";
-import type { SessionResponse, VenueSummary } from "@/types/api";
+import { sessionInclude, toSessionResponse } from "@/lib/sessions";
+import type { VenueSummary } from "@/types/api";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -33,42 +34,13 @@ export default async function TeamPage({
       ? prisma.session.findMany({
           where: { teamId: team.id },
           orderBy: { date: "asc" },
-          include: {
-            venue: true,
-            rsvps: {
-              include: { player: { select: { id: true, name: true } } },
-            },
-          },
+          include: sessionInclude,
         })
       : Promise.resolve([]),
     prisma.venue.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  const sessions: SessionResponse[] = rawSessions.map((s) => ({
-    id: s.id,
-    teamId: s.teamId,
-    venue: s.venue
-      ? {
-          id: s.venue.id,
-          name: s.venue.name,
-          type: s.venue.type,
-          address: s.venue.address,
-          bookingUrl: s.venue.bookingUrl,
-          costPerSession: s.venue.costPerSession,
-        }
-      : null,
-    date: s.date.toISOString(),
-    fromTime: s.fromTime,
-    toTime: s.toTime,
-    costTotal: s.costTotal,
-    minPlayers: s.minPlayers,
-    proposedById: s.proposedById,
-    rsvps: s.rsvps.map((r) => ({
-      playerId: r.playerId,
-      playerName: r.player.name,
-      status: r.status,
-    })),
-  }));
+  const sessions = rawSessions.map(toSessionResponse);
 
   const venues: VenueSummary[] = rawVenues.map((v) => ({
     id: v.id,
