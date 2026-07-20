@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { GridCell } from "@/components/GridCell";
 import { EditDrawer } from "@/components/EditDrawer";
@@ -12,6 +12,7 @@ import type {
   DayCell,
   TeamWindow,
   Status,
+  SessionResponse,
 } from "@/types/api";
 
 // Mon–Sun display order (ISO-style): 1,2,3,4,5,6,0
@@ -28,11 +29,47 @@ const DAY_LABELS_FULL = [
 ];
 const DAY_LABELS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/** Groups sessions by their calendar date ("YYYY-MM-DD"), matching the grid's own date convention. */
+export function groupSessionsByDate(
+  sessions: SessionResponse[],
+): Map<string, SessionResponse[]> {
+  const map = new Map<string, SessionResponse[]>();
+  for (const s of sessions) {
+    const isoDate = s.date.slice(0, 10);
+    const list = map.get(isoDate);
+    if (list) list.push(s);
+    else map.set(isoDate, [s]);
+  }
+  return map;
+}
+
+/** True when at least one session is proposed for the given date. */
+export function hasSessionOnDate(
+  byDate: Map<string, SessionResponse[]>,
+  isoDate: string,
+): boolean {
+  return (byDate.get(isoDate)?.length ?? 0) > 0;
+}
+
+/** True when `playerId` has RSVP'd "in" (ANYTIME) to any session on the given date. */
+export function isPlayerRsvpdIn(
+  byDate: Map<string, SessionResponse[]>,
+  isoDate: string,
+  playerId: string,
+): boolean {
+  const sessions = byDate.get(isoDate);
+  if (!sessions) return false;
+  return sessions.some((s) =>
+    s.rsvps.some((r) => r.playerId === playerId && r.status === "ANYTIME"),
+  );
+}
+
 type GridMode = "usual" | "this-week";
 
 interface AvailabilityGridProps {
   data: TeamGridResponse;
   currentPlayerId: string;
+  sessions: SessionResponse[];
 }
 
 interface DraftEdit {
@@ -44,8 +81,13 @@ interface DraftEdit {
 export function AvailabilityGrid({
   data,
   currentPlayerId,
+  sessions,
 }: AvailabilityGridProps): JSX.Element {
   const [mode, setMode] = useState<GridMode>("this-week");
+  const sessionsByDate = useMemo(
+    () => groupSessionsByDate(sessions),
+    [sessions],
+  );
 
   // Optimistic overrides for Usual mode; keyed `${playerId}:${dayOfWeek}`
   const [usualOverrides, setUsualOverrides] = useState<
@@ -444,15 +486,26 @@ export function AvailabilityGrid({
             >
               Player
             </div>
-            {DAY_ORDER.map((day, i) => (
-              <div
-                key={day}
-                role="columnheader"
-                className="text-center pb-1 text-xs text-text-mute font-medium"
-              >
-                {DAY_LABELS[i]}
-              </div>
-            ))}
+            {DAY_ORDER.map((day, i) => {
+              const isoDate = getTeamWindow(day)?.date;
+              const hasSession = isoDate
+                ? hasSessionOnDate(sessionsByDate, isoDate)
+                : false;
+              return (
+                <div
+                  key={day}
+                  role="columnheader"
+                  className={[
+                    "text-center pb-1 text-xs font-medium rounded-md",
+                    hasSession
+                      ? "text-gold bg-gold-soft border border-gold/40"
+                      : "text-text-mute",
+                  ].join(" ")}
+                >
+                  {DAY_LABELS[i]}
+                </div>
+              );
+            })}
           </div>
 
           {data.players.map((player) => {
@@ -500,6 +553,10 @@ export function AvailabilityGrid({
                     mode === "usual"
                       ? `${player.id}:${day}`
                       : `${player.id}:${(entry as DayCell).date}`;
+                  const cellIsoDate = getTeamWindow(day)?.date;
+                  const rsvpdIn = cellIsoDate
+                    ? isPlayerRsvpdIn(sessionsByDate, cellIsoDate, player.id)
+                    : false;
                   return (
                     <div role="cell" key={day} className="relative">
                       <GridCell
@@ -507,6 +564,20 @@ export function AvailabilityGrid({
                         thisWeekMode={mode === "this-week"}
                         onClick={() => openDrawer(player.id, day)}
                       />
+                      {rsvpdIn && (
+                        <span
+                          className="absolute bottom-0.5 right-0.5 flex items-center justify-center w-2.5 h-2.5 rounded-full bg-gold text-bg text-[7px] leading-none font-bold"
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                      )}
+                      {rsvpdIn && (
+                        <span className="sr-only">
+                          {" "}
+                          — RSVP&apos;d in for a proposed session
+                        </span>
+                      )}
                       {cellError === errKey && (
                         <span className="absolute -bottom-3 left-0 right-0 text-center text-[10px] text-danger">
                           !

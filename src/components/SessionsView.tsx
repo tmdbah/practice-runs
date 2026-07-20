@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useIdentity } from "@/hooks/use-identity";
 import type { SessionResponse, VenueSummary } from "@/types/api";
 
 interface Props {
   slug: string;
-  initialSessions: SessionResponse[];
+  sessions: SessionResponse[];
+  setSessions: Dispatch<SetStateAction<SessionResponse[]>>;
   venues: VenueSummary[];
 }
 
@@ -27,11 +29,11 @@ function costPerPerson(costTotal: number, inCount: number): string {
 
 export function SessionsView({
   slug,
-  initialSessions,
+  sessions,
+  setSessions,
   venues,
 }: Props): React.ReactElement {
   const { playerId: currentPlayerId } = useIdentity(slug);
-  const [sessions, setSessions] = useState<SessionResponse[]>(initialSessions);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [proposalError, setProposalError] = useState<string | null>(null);

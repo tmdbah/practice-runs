@@ -1,7 +1,7 @@
 "use client";
 
 import type { JSX } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useIdentity } from "@/hooks/use-identity";
 import { NamePicker } from "@/components/NamePicker";
@@ -25,6 +25,7 @@ export function TeamGrid({
   venues,
 }: TeamGridProps): JSX.Element {
   const { playerId, setPlayerId, isLoaded } = useIdentity(data.team.slug);
+  const [sessions, setSessions] = useState<SessionResponse[]>(initialSessions);
 
   // Validate stored identity against current roster — clear it if stale
   const isValidPlayer =
@@ -80,11 +81,16 @@ export function TeamGrid({
             </button>
           )}
         </header>
-        <AvailabilityGrid data={data} currentPlayerId={playerId} />
+        <AvailabilityGrid
+          data={data}
+          currentPlayerId={playerId}
+          sessions={sessions}
+        />
         <div className="px-1 pb-8 mt-6">
           <SessionsView
             slug={data.team.slug}
-            initialSessions={initialSessions}
+            sessions={sessions}
+            setSessions={setSessions}
             venues={venues}
           />
         </div>
