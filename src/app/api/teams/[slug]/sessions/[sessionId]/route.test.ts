@@ -3,17 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     team: { findUnique: vi.fn() },
-    session: { findFirst: vi.fn(), update: vi.fn() },
+    session: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
     venue: { findUnique: vi.fn() },
   },
 }));
 
-import { PATCH } from "@/app/api/teams/[slug]/sessions/[sessionId]/route";
+import { PATCH, DELETE } from "@/app/api/teams/[slug]/sessions/[sessionId]/route";
 import { prisma } from "@/lib/prisma";
 
 const mockTeamFindUnique = vi.mocked(prisma.team.findUnique);
 const mockSessionFindFirst = vi.mocked(prisma.session.findFirst);
 const mockSessionUpdate = vi.mocked(prisma.session.update);
+const mockSessionDelete = vi.mocked(prisma.session.delete);
 const mockVenueFindUnique = vi.mocked(prisma.venue.findUnique);
 
 function makeRequest(body: unknown): Request {
@@ -32,6 +33,12 @@ function makeInvalidJsonRequest(): Request {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: "{not json",
+  });
+}
+
+function makeDeleteRequest(): Request {
+  return new Request("http://localhost/api/teams/demo-team/sessions/s1", {
+    method: "DELETE",
   });
 }
 
@@ -217,5 +224,58 @@ describe("PATCH /api/teams/[slug]/sessions/[sessionId]", () => {
     expect(body.rsvps).toEqual([
       { playerId: "p2", playerName: "Amir", status: "ANYTIME" },
     ]);
+  });
+});
+
+describe("DELETE /api/teams/[slug]/sessions/[sessionId]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTeamFindUnique.mockResolvedValue({ id: "team1" } as never);
+    mockSessionFindFirst.mockResolvedValue(existingSessionRow as never);
+    mockSessionDelete.mockResolvedValue({} as never);
+  });
+
+  it("should return 404 when the team is not found", async () => {
+    mockTeamFindUnique.mockResolvedValueOnce(null);
+
+    const res = await DELETE(makeDeleteRequest(), makeParams());
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe("Team not found");
+    expect(mockSessionDelete).not.toHaveBeenCalled();
+  });
+
+  it("should return 404 when the session is not found on this team", async () => {
+    mockSessionFindFirst.mockResolvedValueOnce(null);
+
+    const res = await DELETE(makeDeleteRequest(), makeParams());
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe("Session not found");
+    expect(mockSessionDelete).not.toHaveBeenCalled();
+  });
+
+  it("should scope the session lookup to the resolved team", async () => {
+    await DELETE(makeDeleteRequest(), makeParams());
+
+    expect(mockSessionFindFirst).toHaveBeenCalledWith({
+      where: { id: "s1", teamId: "team1" },
+    });
+  });
+
+  it("should delete the session and return 204 on success", async () => {
+    const res = await DELETE(makeDeleteRequest(), makeParams());
+
+    expect(res.status).toBe(204);
+    expect(mockSessionDelete).toHaveBeenCalledWith({ where: { id: "s1" } });
+  });
+
+  it("should return an empty body on success", async () => {
+    const res = await DELETE(makeDeleteRequest(), makeParams());
+
+    const text = await res.text();
+    expect(text).toBe("");
   });
 });
