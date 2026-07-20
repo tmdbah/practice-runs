@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Phase 3 — Sessions & Venues
+# Current Feature
 
 ## Merge Target
 
@@ -10,31 +10,15 @@ main
 
 <!-- Not Started|In Progress|Completed -->
 
-In Progress
+Not Started
 
 ## Goals
 
 <!-- Goals & requirements -->
 
-- **1. Prisma schema** — Add `Venue`, `Session`, `Rsvp` models + `VenueType` enum; run migration; seed INSZN as first venue
-- **2. Admin venue form** — Simple (non-auth-gated) form to add a venue via POST endpoint or Server Action
-- **3. Session proposal** — Form for a player to propose a session: venue, date, time slot; `costTotal` + `minPlayers` shown only for `RENTED_GYM`
-- **4. RSVP** — Any player can RSVP in/out per session; one row per player per session (upsert); optimistic updates
-- **5. Live cost split + headcount display** — For `RENTED_GYM` sessions: show `RSVP'd: X / minPlayers`, cost/person now, and projected cost if minPlayers join; guard divide-by-zero
-- **6. Edit session** — Proposer can edit an existing session's venue/date/time/cost/minPlayers in place via the same propose form, without disturbing existing RSVPs
-
 ## Notes
 
 <!-- Any extra notes -->
-
-- Separate data model from Phases 1–2 — do NOT share state with `DayDefault`/`DateOverride`
-- No real auth — admin venue form is security-by-obscurity (route only the admin knows about)
-- `minPlayers` is never hardcoded — always an editable per-session field
-- `OPEN_GYM` / `PARK` sessions: `costTotal` and `minPlayers` stay null, no cost/headcount UI
-- Reuse existing `Status` enum for RSVP state (`ANYTIME` = in, `UNAVAILABLE` = out)
-- Cost is in cents (`Int`), not dollars
-- Work items in order — each depends on the ones before it; load one at a time
-- Hard boundary — do NOT build: open venue submission, Maps API, auth, demo team, jersey numbers, notes
 
 ## History
 
@@ -48,6 +32,7 @@ In Progress
 - 2026-07-19: Team Window Carousel completed on `feature/team-window-carousel` (spec: `context/features/feature-team-window-carousel-spec.md`). Replaced the This Week grid's per-day table row (`TeamWindowRow`, deleted) with a standalone `TeamWindowCard`: defaults to the best-availability day (tie-break: earliest date; all-zero falls back to day 0), navigable via always-visible arrow buttons (disabled at the ends, no wraparound), native touch swipe (CSS scroll-snap), and 7 tappable dot indicators. Underlying `computeWindowForDate` calculation untouched — display-layer only. Also updated `practiceRuns-ProjectOverview.md`, `practiceRuns-ProjectPlan.html`, `AGENTS.md`, and `feature-phase-2-spec.md` (superseded note) to keep docs in lockstep with the new design, and corrected stale "Phase 2 not started" status text left over from prior merges. 4 new unit tests for the default-day selection logic; `npm run lint`, `npm run build`, and all 49 unit tests pass. Merged to main.
 - 2026-07-19: TeamWindowCard positioning/style fix on `fix/team-window-card-position`, based on a mockup screenshot comparison. Moved the card above the grid table (was rendering below it) and restyled from a tall stacked card with large flanking arrows into a compact single-line box (label + day/time pill + "{count} free · best overlap" caption), matching the mockup's "Team window · Fri 7–9pm" look — carousel functionality (arrows, swipe, dots) unchanged. `bestIndex` now computed via a lazy `useState` initializer instead of a ref, since the `react-hooks/refs` lint rule disallows reading a ref during render. `npm run lint`, `npm run build`, and all 49 unit tests pass. Merged to main.
 - 2026-07-19: TeamWindowCard layout/mount-sync fix on `fix/team-window-card-layout-and-mount-sync`, from a second screenshot review. Fixed content bleed (next slide's text peeking in on the right edge): arrow buttons were `absolute`-positioned overlays compensated for with `px-7` padding on the scroll container, while slides were `w-full` against that same padded box — the unpadded visible viewport was wider than a slide, exposing a sliver of the next one. Replaced with true flex-sibling arrows (`shrink-0` buttons + `flex-1 min-w-0` scroll area, no padding trick). Also fixed the carousel visually opening on day 0 regardless of the computed best-availability day — the default index only set React state, nothing actually scrolled the container there, so the dot indicator looked desynced from the visible card. Added a `useLayoutEffect` that jumps to the default index with `behavior: "instant"` before first paint. `npm run lint`, `npm run build`, and all 49 unit tests pass. Merged to main.
+- 2026-07-20: Phase 3 — Sessions & Venues completed on `phase-3-sessions-venues`. Added Venue/Session/Rsvp models + VenueType enum with two migrations; seeded INSZN as first venue. Built admin venue form (/admin/venues/new), full sessions CRUD API (GET, POST, PATCH, DELETE, RSVP upsert), and SessionsView client component with propose/edit form, optimistic RSVP, live cost-split + headcount display for RENTED_GYM, and proposer-only edit/delete with inline confirmation. Also: NamePicker replaced native select with tappable list; TeamGrid gained stale-identity auto-clear + Switch button; shared sessionInclude/toSessionResponse helper extracted to src/lib/sessions.ts. 28 new tests (97 total). Merged to main.
 - 2026-07-19: Reset-to-Usual fix, committed directly to `main` (skipped the branch/PR workflow this once). Bug: once a player overrode a This Week day, there was no way back to "inherit Usual" short of manually re-entering Usual's exact values. Added `DELETE /api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD` (validates date format, `deleteMany` is idempotent) and a "Reset to Usual" button in `EditDrawer` shown only when the open cell is already overridden in This Week mode; `AvailabilityGrid.handleReset` does the optimistic revert-to-inherited + rollback-on-failure. Also redesigned `NamePicker` from a tap-list to a `<select>` + Continue button (matches the doc's original mockup) and centered `TeamGrid` with a `max-w-md` wrapper instead of full-bleed. New tests for the DELETE route; docs (`practiceRuns-ProjectOverview.md` Routes/API + Decisions log, `practiceRuns-Architecture.md` §5.2) updated retroactively on 2026-07-20 to reflect this — see below.
 - 2026-07-20: Accessibility + demo-roster fix, also committed directly to `main`. Bug: the availability grid's `<table>`/`table-fixed` markup couldn't give per-breakpoint column sizing once the demo roster was realistically sized, and lacked explicit grid semantics. Re-implemented `AvailabilityGrid` as CSS Grid with explicit `role="table"/"row"/"columnheader"/"rowheader"/"cell"` attributes (no visual regression, same cell components). `TeamWindowCard` now highlights (gold background/text) when the visible day is the best-overlap day and auto-follows the carousel to the new best day when an edit changes which day that is (previously only positioned correctly on mount). Expanded `prisma/seed.ts` demo roster from 8 to 15 players to match the real team's size. Added Neon MCP tool-call rules to `AGENTS.md`. Docs (`practiceRuns-ProjectOverview.md`, `practiceRuns-Architecture.md`, `practiceRuns-ProjectPlan.html`) updated retroactively on 2026-07-20 for both this and the prior entry, per user request to reconcile main with the docs after skipping the doc-first workflow for two commits.
 - 2026-07-20: Bug report — "Unexpected end of JSON input" when creating a session, on `phase-3-sessions-venues`. Root cause was two-fold: (1) the dev server had been running since before the Sessions/Venues API routes existed on this branch, so `POST .../sessions` 500'd with an empty body — fixed by restarting `next dev` (no code change). (2) A real, separately-discovered defect in `src/hooks/use-identity.ts`: `isLoaded` was computed as `typeof window !== "undefined"`, which is `true` on the client's very first (hydration-matching) render — exactly the anti-pattern React's own hydration-mismatch message names — so every page load rendered `TeamGrid`'s loading placeholder on the server but jumped straight to `NamePicker`/the grid on the client, throwing a hydration mismatch on every load. Fixed by giving `isLoaded` the same `useSyncExternalStore` dual-snapshot treatment already used for `playerId` in the same hook (server snapshot `false`, client snapshot `true`) — a plain `useState`+`useEffect` "mounted flag" was tried first but rejected by the project's `react-hooks/set-state-in-effect` lint rule. Verified via `npx vitest run` (6/6 hook tests), a clean Playwright pass (0 console errors on load and after proposing a session), and a full propose → RSVP → delete round trip through the real UI. `npm run lint` and the full 54-test suite pass.
