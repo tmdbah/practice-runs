@@ -47,8 +47,11 @@ export function computeDefaultIndex(entries: DayWindowEntry[]): number {
 }
 
 export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
-  const [index, setIndex] = useState(() => computeDefaultIndex(entries));
-  const [bestIndex] = useState(() => computeDefaultIndex(entries));
+  const bestIndex = computeDefaultIndex(entries);
+  const bestAvailableCount = entries[bestIndex]?.teamWindow?.availableCount ?? 0;
+
+  const [index, setIndex] = useState(bestIndex);
+  const prevBestIndexRef = useRef(bestIndex);
   const scrollRef = useRef<HTMLDivElement>(null);
   const suppressScrollSync = useRef(false);
 
@@ -73,6 +76,17 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
     if (index !== 0) scrollToIndex(index, "instant");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Follow the carousel to the new best-overlap day when an availability
+  // edit changes which day that is (skips the initial mount, which is
+  // already positioned there by the layout effect above).
+  useEffect(() => {
+    if (bestIndex !== prevBestIndexRef.current) {
+      prevBestIndexRef.current = bestIndex;
+      scrollToIndex(bestIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bestIndex]);
 
   // Keep the active dot/arrows in sync when the user swipes manually,
   // without fighting our own programmatic scrollIntoView calls.
@@ -110,9 +124,18 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
     };
   }, []);
 
+  const isViewingBest = index === bestIndex && bestAvailableCount > 0;
+
   return (
     <div className="mb-4">
-      <div className="flex items-center gap-1 rounded-xl bg-surface border border-border pl-1 pr-2">
+      <div
+        className={[
+          "flex items-center gap-1 rounded-xl border pl-1 pr-2 transition-colors",
+          isViewingBest
+            ? "bg-gold-soft border-gold"
+            : "bg-surface border-border",
+        ].join(" ")}
+      >
         <button
           type="button"
           onClick={() => scrollToIndex(index - 1)}
@@ -134,7 +157,12 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
             return (
               <div key={entry.dayOfWeek} className="w-full shrink-0 snap-center py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-text-dim whitespace-nowrap">
+                  <span
+                    className={[
+                      "text-xs font-semibold whitespace-nowrap",
+                      isBest ? "text-gold" : "text-text-dim",
+                    ].join(" ")}
+                  >
                     Team window
                   </span>
                   {availableCount > 0 && w?.window ? (
@@ -147,7 +175,12 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-text-mute mt-0.5">
+                <div
+                  className={[
+                    "text-[11px] mt-0.5",
+                    isBest ? "text-gold" : "text-text-mute",
+                  ].join(" ")}
+                >
                   {availableCount === 0
                     ? "Nobody's free yet"
                     : `${availableCount} free${isBest ? " · best overlap" : ""}`}

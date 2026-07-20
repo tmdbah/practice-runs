@@ -432,87 +432,93 @@ export function AvailabilityGrid({
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[320px] border-separate border-spacing-0 table-fixed">
-          <thead>
-            <tr>
-              <th className="text-left py-2 pr-2 text-xs text-text-mute font-medium w-24">
-                Player
-              </th>
-              {DAY_ORDER.map((day, i) => (
-                <th
-                  key={day}
-                  className="text-center py-2 text-xs text-text-mute font-medium"
+        <div
+          role="table"
+          aria-label="Availability grid"
+          className="grid w-full gap-1 lg:gap-2 grid-cols-[6rem_repeat(7,minmax(0,1fr))]"
+        >
+          <div role="row" className="contents">
+            <div
+              role="columnheader"
+              className="text-left pr-2 pb-1 text-xs text-text-mute font-medium"
+            >
+              Player
+            </div>
+            {DAY_ORDER.map((day, i) => (
+              <div
+                key={day}
+                role="columnheader"
+                className="text-center pb-1 text-xs text-text-mute font-medium"
+              >
+                {DAY_LABELS[i]}
+              </div>
+            ))}
+          </div>
+
+          {data.players.map((player) => {
+            const isYou = player.id === currentPlayerId;
+            return (
+              <div role="row" className="contents" key={player.id}>
+                <div
+                  role="rowheader"
+                  className="pr-2 flex items-center min-w-0"
                 >
-                  {DAY_LABELS[i]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.players.map((player) => {
-              const isYou = player.id === currentPlayerId;
-              return (
-                <tr key={player.id}>
-                  <td className="pr-2 py-1 align-middle">
-                    <span
-                      className={[
-                        "text-sm truncate max-w-[6rem] flex items-center gap-1",
-                        isYou ? "text-text font-semibold" : "text-text-dim",
-                      ].join(" ")}
-                    >
-                      {player.number !== null ? (
+                  <span
+                    className={[
+                      "text-sm truncate flex items-center gap-1",
+                      isYou ? "text-text font-semibold" : "text-text-dim",
+                    ].join(" ")}
+                  >
+                    {player.number !== null ? (
+                      <span
+                        className={
+                          isYou
+                            ? "shrink-0 inline-flex items-center justify-center h-[1.125rem] px-1.5 rounded-full bg-gold-soft text-gold text-[10px] font-bold border border-gold/40"
+                            : "shrink-0 text-text-mute text-xs"
+                        }
+                      >
+                        #{player.number}
+                      </span>
+                    ) : (
+                      isYou && (
                         <span
-                          className={
-                            isYou
-                              ? "shrink-0 inline-flex items-center justify-center h-[1.125rem] px-1.5 rounded-full bg-gold-soft text-gold text-[10px] font-bold border border-gold/40"
-                              : "shrink-0 text-text-mute text-xs"
-                          }
-                        >
-                          #{player.number}
+                          className="shrink-0 w-1.5 h-1.5 rounded-full bg-gold"
+                          aria-hidden="true"
+                        />
+                      )
+                    )}
+                    <span className="truncate">{player.name}</span>
+                    {isYou && <span className="sr-only"> (you)</span>}
+                  </span>
+                </div>
+                {DAY_ORDER.map((day) => {
+                  const entry =
+                    mode === "usual"
+                      ? getUsualEntry(player, day)
+                      : getWeekCell(player, day);
+                  const errKey =
+                    mode === "usual"
+                      ? `${player.id}:${day}`
+                      : `${player.id}:${(entry as DayCell).date}`;
+                  return (
+                    <div role="cell" key={day} className="relative">
+                      <GridCell
+                        entry={entry}
+                        thisWeekMode={mode === "this-week"}
+                        onClick={() => openDrawer(player.id, day)}
+                      />
+                      {cellError === errKey && (
+                        <span className="absolute -bottom-3 left-0 right-0 text-center text-[10px] text-danger">
+                          !
                         </span>
-                      ) : (
-                        isYou && (
-                          <span
-                            className="shrink-0 w-1.5 h-1.5 rounded-full bg-gold"
-                            aria-hidden="true"
-                          />
-                        )
                       )}
-                      <span className="truncate">{player.name}</span>
-                      {isYou && <span className="sr-only"> (you)</span>}
-                    </span>
-                  </td>
-                  {DAY_ORDER.map((day) => {
-                    const entry =
-                      mode === "usual"
-                        ? getUsualEntry(player, day)
-                        : getWeekCell(player, day);
-                    const errKey =
-                      mode === "usual"
-                        ? `${player.id}:${day}`
-                        : `${player.id}:${(entry as DayCell).date}`;
-                    return (
-                      <td key={day} className="py-1 px-0.5">
-                        <div className="relative">
-                          <GridCell
-                            entry={entry}
-                            thisWeekMode={mode === "this-week"}
-                            onClick={() => openDrawer(player.id, day)}
-                          />
-                          {cellError === errKey && (
-                            <span className="absolute -bottom-3 left-0 right-0 text-center text-[10px] text-danger">
-                              !
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {activeEdit && activePlayer && activeEntry && (

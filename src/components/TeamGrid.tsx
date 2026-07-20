@@ -25,7 +25,7 @@ export function TeamGrid({ data }: TeamGridProps): JSX.Element {
 
   return (
     <div className="min-h-screen bg-bg text-text px-3 py-4 flex justify-center">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md lg:max-w-xl">
         <header className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl bg-surface border border-border">
           <Image
             src="/UK_logo.PNG"

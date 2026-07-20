@@ -31,6 +31,15 @@ Replaces a Google Sheets prototype used by the "Uncrowned Kings" pickup basketba
 
 ---
 
+## Neon MCP Rules
+
+- **Always** use project `frosty-resonance-18652760` (`practice-runs`) for all Neon MCP tool calls.
+- **Always** target the `development` branch (`br-fancy-cloud-awzo0bbh`) by default — pass `branchId: "br-fancy-cloud-awzo0bbh"` on every call that accepts it.
+- **Never** read from or write to the `production` branch (`br-cold-sound-aw4ltgma`) unless the user explicitly says "production".
+- If a Neon tool call does not accept a `branchId`, confirm with the user before proceeding.
+
+---
+
 ## Tech Stack
 
 - **Framework:** Next.js (App Router, latest stable)

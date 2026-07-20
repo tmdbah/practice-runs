@@ -7,6 +7,8 @@ const prisma = new PrismaClient({ adapter });
 
 const DEMO_SLUG = "demo-team";
 
+// 15 players — mirrors the real roster size so the demo reflects how
+// crowded the grid actually gets with a full team, not a partial one.
 const DEMO_PLAYERS: Array<{ name: string; number: number | null }> = [
   { name: "Marcus", number: 23 },
   { name: "Darius", number: 5 },
@@ -16,6 +18,13 @@ const DEMO_PLAYERS: Array<{ name: string; number: number | null }> = [
   { name: "Elijah", number: 14 },
   { name: "Caden", number: 7 },
   { name: "Nate", number: 21 },
+  { name: "Isaiah", number: 3 },
+  { name: "Devon", number: 15 },
+  { name: "Malik", number: 8 },
+  { name: "Xavier", number: 2 },
+  { name: "Terrence", number: 44 },
+  { name: "Quincy", number: 12 },
+  { name: "Amir", number: 30 },
 ];
 
 async function main(): Promise<void> {
