@@ -51,4 +51,14 @@ describe("computeDefaultIndex", () => {
     entries[2].teamWindow = undefined;
     expect(computeDefaultIndex(entries)).toBe(0);
   });
+
+  it("does not treat a single free player as an overlap — defaults to day 0", () => {
+    const entries = makeEntries([1, 0, 0, 1, 0, 0, 0]);
+    expect(computeDefaultIndex(entries)).toBe(0);
+  });
+
+  it("skips one-player days in favor of a later day with a real two-player overlap", () => {
+    const entries = makeEntries([1, 1, 1, 2, 1, 1, 1]);
+    expect(computeDefaultIndex(entries)).toBe(3); // Thursday
+  });
 });

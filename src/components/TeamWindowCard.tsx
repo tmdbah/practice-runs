@@ -27,13 +27,21 @@ function fmtTime(t: string): string {
   return `${h12}:${mStr}${period}`;
 }
 
-/** Highest availableCount wins; ties broken by earliest date. All-zero → day 0. */
+/** A single player being free isn't an overlap — need at least two to call it one. */
+export const MIN_OVERLAP_PLAYERS = 2;
+
+/**
+ * Highest availableCount wins among days with at least MIN_OVERLAP_PLAYERS
+ * free; ties broken by earliest date. If no day clears that bar (including
+ * all-zero), defaults to day 0.
+ */
 export function computeDefaultIndex(entries: DayWindowEntry[]): number {
   let bestIndex = 0;
   let bestCount = -1;
   let bestDate = "";
   entries.forEach((entry, i) => {
     const count = entry.teamWindow?.availableCount ?? 0;
+    if (count < MIN_OVERLAP_PLAYERS) return;
     const date = entry.teamWindow?.date ?? "";
     const better =
       count > bestCount || (count === bestCount && date !== "" && (bestDate === "" || date < bestDate));
@@ -124,7 +132,7 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
     };
   }, []);
 
-  const isViewingBest = index === bestIndex && bestAvailableCount > 0;
+  const isViewingBest = index === bestIndex && bestAvailableCount >= MIN_OVERLAP_PLAYERS;
 
   return (
     <div className="mb-4">
@@ -153,7 +161,7 @@ export function TeamWindowCard({ entries }: TeamWindowCardProps): JSX.Element {
           {entries.map((entry, i) => {
             const w = entry.teamWindow;
             const availableCount = w?.availableCount ?? 0;
-            const isBest = i === bestIndex && availableCount > 0;
+            const isBest = i === bestIndex && availableCount >= MIN_OVERLAP_PLAYERS;
             return (
               <div key={entry.dayOfWeek} className="w-full shrink-0 snap-center py-3">
                 <div className="flex items-center justify-between gap-2">
