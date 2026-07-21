@@ -33,6 +33,7 @@ export function toSessionResponse(
     costTotal: session.costTotal,
     minPlayers: session.minPlayers,
     proposedById: session.proposedById,
+    status: session.status,
     rsvps: session.rsvps.map((r) => ({
       playerId: r.playerId,
       playerName: r.player.name,

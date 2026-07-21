@@ -65,7 +65,7 @@ async function main(): Promise<void> {
       id: "inszn-venue",
       name: "INSZN",
       type: "RENTED_GYM",
-      address: "Chicago, IL",
+      address: "Charlotte, NC",
       bookingUrl: "https://insznbasketball.com",
       costPerSession: 10000, // $100.00 in cents
     },

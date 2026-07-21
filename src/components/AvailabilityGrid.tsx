@@ -43,15 +43,27 @@ export function groupSessionsByDate(
   return map;
 }
 
-/** True when at least one session is proposed for the given date. */
+/** True when at least one live (non-cancelled) session is proposed for the given date. */
 export function hasSessionOnDate(
   byDate: Map<string, SessionResponse[]>,
   isoDate: string,
 ): boolean {
-  return (byDate.get(isoDate)?.length ?? 0) > 0;
+  const sessions = byDate.get(isoDate);
+  if (!sessions) return false;
+  return sessions.some((s) => s.status !== "CANCELLED");
 }
 
-/** True when `playerId` has RSVP'd "in" (ANYTIME) to any session on the given date. */
+/** True when at least one CONFIRMED (booked for sure) session exists on the given date. */
+export function isSessionConfirmedOnDate(
+  byDate: Map<string, SessionResponse[]>,
+  isoDate: string,
+): boolean {
+  const sessions = byDate.get(isoDate);
+  if (!sessions) return false;
+  return sessions.some((s) => s.status === "CONFIRMED");
+}
+
+/** True when `playerId` has RSVP'd "in" (ANYTIME) to any live (non-cancelled) session on the given date. */
 export function isPlayerRsvpdIn(
   byDate: Map<string, SessionResponse[]>,
   isoDate: string,
@@ -59,8 +71,10 @@ export function isPlayerRsvpdIn(
 ): boolean {
   const sessions = byDate.get(isoDate);
   if (!sessions) return false;
-  return sessions.some((s) =>
-    s.rsvps.some((r) => r.playerId === playerId && r.status === "ANYTIME"),
+  return sessions.some(
+    (s) =>
+      s.status !== "CANCELLED" &&
+      s.rsvps.some((r) => r.playerId === playerId && r.status === "ANYTIME"),
   );
 }
 
@@ -491,15 +505,20 @@ export function AvailabilityGrid({
               const hasSession = isoDate
                 ? hasSessionOnDate(sessionsByDate, isoDate)
                 : false;
+              const confirmed = isoDate
+                ? isSessionConfirmedOnDate(sessionsByDate, isoDate)
+                : false;
               return (
                 <div
                   key={day}
                   role="columnheader"
                   className={[
                     "text-center pb-1 text-xs font-medium rounded-md",
-                    hasSession
+                    confirmed
                       ? "text-gold bg-gold-soft border border-gold/40"
-                      : "text-text-mute",
+                      : hasSession
+                        ? "text-gold border border-gold/40"
+                        : "text-text-mute",
                   ].join(" ")}
                 >
                   {DAY_LABELS[i]}

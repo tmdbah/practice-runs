@@ -41,11 +41,11 @@ model Player {
 }
 
 model DayDefault {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   playerId  String
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   dayOfWeek Int // 0=Sun ... 6=Sat
-  status    Status   @default(UNAVAILABLE)
+  status    Status  @default(UNAVAILABLE)
   fromTime  String? // "18:00", only set when status = SPECIFIC
   toTime    String?
   note      String? // e.g. "church," "work until 4:30"
@@ -70,8 +70,14 @@ model DateOverride {
 
 enum VenueType {
   RENTED_GYM // booked and paid, exclusive access, worth it only above minPlayers
-  OPEN_GYM   // public gym time, no booking
-  PARK       // free, no booking
+  OPEN_GYM // public gym time, no booking
+  PARK // free, no booking
+}
+
+enum SessionStatus {
+  PROPOSED // default — still gathering RSVPs, nothing booked yet
+  CONFIRMED // proposer marked it booked for sure
+  CANCELLED // slot fell through (e.g. venue booked by someone else) — kept as a historical record, not deleted
 }
 
 model Venue {
@@ -80,33 +86,34 @@ model Venue {
   type           VenueType
   address        String?
   bookingUrl     String?
-  costPerSession Int?      // cents — typical/last-used cost, RENTED_GYM only
+  costPerSession Int? // cents — typical/last-used cost, RENTED_GYM only
   sessions       Session[]
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   teamId       String
-  team         Team     @relation(fields: [teamId], references: [id])
+  team         Team          @relation(fields: [teamId], references: [id])
   venueId      String?
-  venue        Venue?   @relation(fields: [venueId], references: [id])
-  proposedById String?  // playerId of the player who proposed — null for legacy rows
+  venue        Venue?        @relation(fields: [venueId], references: [id])
+  proposedById String? // playerId of the player who proposed — null for legacy rows
   date         DateTime
   fromTime     String
   toTime       String
-  costTotal    Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
-  minPlayers   Int?     // RENTED_GYM only — editable, never hardcoded
+  costTotal    Int? // cents — RENTED_GYM only, null for OPEN_GYM / PARK
+  minPlayers   Int? // RENTED_GYM only — editable, never hardcoded
+  status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
 
   @@index([teamId])
 }
 
 model Rsvp {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   playerId  String
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   status    Status
 
   @@unique([sessionId, playerId])
