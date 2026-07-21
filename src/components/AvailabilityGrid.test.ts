@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   groupSessionsByDate,
   hasSessionOnDate,
+  isSessionConfirmedOnDate,
   isPlayerRsvpdIn,
 } from "@/components/AvailabilityGrid";
 import type { SessionResponse } from "@/types/api";
@@ -19,6 +20,7 @@ function makeSession(
     costTotal: null,
     minPlayers: null,
     proposedById: null,
+    status: "PROPOSED",
     rsvps: [],
     ...overrides,
   };
@@ -68,6 +70,62 @@ describe("hasSessionOnDate", () => {
 
   it("returns false for an empty map", () => {
     expect(hasSessionOnDate(new Map(), "2026-07-24")).toBe(false);
+  });
+
+  it("returns false when the only session on that date is cancelled", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({ date: "2026-07-24T00:00:00.000Z", status: "CANCELLED" }),
+    ]);
+    expect(hasSessionOnDate(byDate, "2026-07-24")).toBe(false);
+  });
+
+  it("returns true when a confirmed session exists on the date", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({ date: "2026-07-24T00:00:00.000Z", status: "CONFIRMED" }),
+    ]);
+    expect(hasSessionOnDate(byDate, "2026-07-24")).toBe(true);
+  });
+
+  it("returns true when at least one of multiple sessions that day is live", () => {
+    const s1 = makeSession({
+      id: "s1",
+      date: "2026-07-24T00:00:00.000Z",
+      status: "CANCELLED",
+    });
+    const s2 = makeSession({
+      id: "s2",
+      date: "2026-07-24T00:00:00.000Z",
+      status: "PROPOSED",
+    });
+    const byDate = groupSessionsByDate([s1, s2]);
+    expect(hasSessionOnDate(byDate, "2026-07-24")).toBe(true);
+  });
+});
+
+describe("isSessionConfirmedOnDate", () => {
+  it("returns true when a confirmed session exists on the date", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({ date: "2026-07-24T00:00:00.000Z", status: "CONFIRMED" }),
+    ]);
+    expect(isSessionConfirmedOnDate(byDate, "2026-07-24")).toBe(true);
+  });
+
+  it("returns false when the session is only proposed", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({ date: "2026-07-24T00:00:00.000Z", status: "PROPOSED" }),
+    ]);
+    expect(isSessionConfirmedOnDate(byDate, "2026-07-24")).toBe(false);
+  });
+
+  it("returns false when the session is cancelled", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({ date: "2026-07-24T00:00:00.000Z", status: "CANCELLED" }),
+    ]);
+    expect(isSessionConfirmedOnDate(byDate, "2026-07-24")).toBe(false);
+  });
+
+  it("returns false when no session exists on that date", () => {
+    expect(isSessionConfirmedOnDate(new Map(), "2026-07-24")).toBe(false);
   });
 });
 
@@ -132,5 +190,16 @@ describe("isPlayerRsvpdIn", () => {
     });
     const byDate = groupSessionsByDate([s1, s2]);
     expect(isPlayerRsvpdIn(byDate, "2026-07-24", "p1")).toBe(true);
+  });
+
+  it("returns false when the matching session is cancelled, even with an ANYTIME RSVP", () => {
+    const byDate = groupSessionsByDate([
+      makeSession({
+        date: "2026-07-24T00:00:00.000Z",
+        status: "CANCELLED",
+        rsvps: [{ playerId: "p1", playerName: "Josh", status: "ANYTIME" }],
+      }),
+    ]);
+    expect(isPlayerRsvpdIn(byDate, "2026-07-24", "p1")).toBe(false);
   });
 });

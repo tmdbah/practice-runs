@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useIdentity } from "@/hooks/use-identity";
+import { formatTime } from "@/lib/format-time";
 import type { SessionResponse, VenueSummary } from "@/types/api";
 
 interface Props {
@@ -41,6 +42,9 @@ export function SessionsView({
   const [rsvpErrors, setRsvpErrors] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   async function handleDelete(sessionId: string): Promise<void> {
     setDeletingId(sessionId);
@@ -54,6 +58,45 @@ export function SessionsView({
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  /** Marks a session booked for sure. Not optimistic — a mistaken "booked" flash would mislead the team. */
+  async function handleConfirm(sessionId: string): Promise<void> {
+    setConfirmingId(sessionId);
+    try {
+      const res = await fetch(
+        `/api/teams/${slug}/sessions/${sessionId}/confirm`,
+        { method: "PATCH" },
+      );
+      if (res.ok) {
+        const updated = (await res.json()) as SessionResponse;
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? updated : s)),
+        );
+      }
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
+  /** Marks a session's slot as fallen through. Keeps the session and its RSVPs as a historical record instead of deleting. */
+  async function handleCancel(sessionId: string): Promise<void> {
+    setCancellingId(sessionId);
+    setConfirmCancelId(null);
+    try {
+      const res = await fetch(
+        `/api/teams/${slug}/sessions/${sessionId}/cancel`,
+        { method: "PATCH" },
+      );
+      if (res.ok) {
+        const updated = (await res.json()) as SessionResponse;
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? updated : s)),
+        );
+      }
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -86,6 +129,19 @@ export function SessionsView({
     setDate(session.date.slice(0, 10)); // ISO -> "YYYY-MM-DD" for <input type="date">
     setFromTime(session.fromTime);
     setToTime(session.toTime);
+    setCostTotal(session.costTotal != null ? String(session.costTotal / 100) : "");
+    setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
+    setProposalError(null);
+    setShowForm(true);
+  }
+
+  /** Opens the propose form pre-filled from a cancelled session's venue/cost/minPlayers, with date/time left blank — for proposing an alternate time at the same spot. Creates a new session (POST), doesn't touch the cancelled one. */
+  function startAlternate(session: SessionResponse): void {
+    setEditingId(null);
+    setVenueId(session.venue?.id ?? venues[0]?.id ?? "");
+    setDate("");
+    setFromTime("");
+    setToTime("");
     setCostTotal(session.costTotal != null ? String(session.costTotal / 100) : "");
     setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
     setProposalError(null);
@@ -241,7 +297,7 @@ export function SessionsView({
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
             />
           </div>
 
@@ -253,7 +309,7 @@ export function SessionsView({
                 required
                 value={fromTime}
                 onChange={(e) => setFromTime(e.target.value)}
-                className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
               />
             </div>
             <div className="flex flex-col gap-1 flex-1">
@@ -263,7 +319,7 @@ export function SessionsView({
                 required
                 value={toTime}
                 onChange={(e) => setToTime(e.target.value)}
-                className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
               />
             </div>
           </div>
@@ -324,7 +380,15 @@ export function SessionsView({
         <p className="text-gray-400 text-sm">No sessions proposed yet.</p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {sessions.map((session) => {
+          {[...sessions]
+            .sort((a, b) =>
+              a.date !== b.date
+                ? a.date < b.date
+                  ? -1
+                  : 1
+                : a.fromTime.localeCompare(b.fromTime),
+            )
+            .map((session) => {
             const inRsvps = session.rsvps.filter((r) => r.status === "ANYTIME");
             const outRsvps = session.rsvps.filter(
               (r) => r.status === "UNAVAILABLE",
@@ -334,25 +398,45 @@ export function SessionsView({
               : null;
             const isRented = session.venue?.type === "RENTED_GYM";
             const sessionDate = new Date(session.date);
+            const isCancelled = session.status === "CANCELLED";
+            const isConfirmed = session.status === "CONFIRMED";
+            const isProposer =
+              currentPlayerId != null &&
+              session.proposedById === currentPlayerId;
 
             return (
               <li
                 key={session.id}
-                className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-2"
+                className={`rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-2 ${
+                  isCancelled ? "opacity-60" : ""
+                }`}
               >
+                {isCancelled && (
+                  <p className="text-xs font-semibold text-red-400 bg-red-950/40 border border-red-900 rounded px-2 py-1">
+                    This slot fell through — no longer available.
+                  </p>
+                )}
+
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-white">
+                    <p className="font-semibold text-white flex items-center gap-2">
                       {session.venue?.name ?? "TBD"}
+                      {isConfirmed && (
+                        <span className="text-[10px] font-bold text-gold bg-gold-soft border border-gold/40 rounded px-1.5 py-0.5">
+                          Booked ✓
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-gray-400">
                       {sessionDate.toLocaleDateString("en-US", {
                         weekday: "short",
                         month: "short",
                         day: "numeric",
+                        timeZone: "UTC",
                       })}{" "}
-                      · {session.fromTime}–{session.toTime}
+                      · {formatTime(session.fromTime)}–
+                      {formatTime(session.toTime)}
                     </p>
                     {session.venue && (
                       <p className="text-xs text-gray-500">
@@ -363,9 +447,18 @@ export function SessionsView({
                       </p>
                     )}
                   </div>
-                  {/* RSVP buttons + delete */}
+                  {/* RSVP buttons + proposer actions */}
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {currentPlayerId ? (
+                    {isCancelled ? (
+                      currentPlayerId && (
+                        <button
+                          onClick={() => startAlternate(session)}
+                          className="rounded px-2.5 py-1 text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white transition-colors"
+                        >
+                          Propose alternate time here
+                        </button>
+                      )
+                    ) : currentPlayerId ? (
                       <div className="flex gap-1">
                         <button
                           onClick={() => handleRsvp(session.id, "ANYTIME")}
@@ -393,55 +486,96 @@ export function SessionsView({
                         Pick your name above to RSVP
                       </span>
                     )}
-                    {/* Delete — only shown to the proposer */}
-                    {currentPlayerId &&
-                      session.proposedById === currentPlayerId && (
-                        <div className="flex items-center gap-2 justify-end">
-                          {confirmDeleteId === session.id ? (
-                            <>
-                              <span className="text-[10px] text-gray-400">
-                                Delete this session?
-                              </span>
-                              <button
-                                onClick={() => handleDelete(session.id)}
-                                disabled={deletingId === session.id}
-                                className="text-[10px] font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
-                              >
-                                {deletingId === session.id
-                                  ? "Deleting…"
-                                  : "Yes, delete"}
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
+                    {/* Proposer-only actions */}
+                    {isProposer && (
+                      <div className="flex items-center gap-2 justify-end">
+                        {confirmDeleteId === session.id ? (
+                          <>
+                            <span className="text-[10px] text-gray-400">
+                              Delete this session?
+                            </span>
+                            <button
+                              onClick={() => handleDelete(session.id)}
+                              disabled={deletingId === session.id}
+                              className="text-[10px] font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
+                            >
+                              {deletingId === session.id
+                                ? "Deleting…"
+                                : "Yes, delete"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                            >
+                              Never mind
+                            </button>
+                          </>
+                        ) : confirmCancelId === session.id ? (
+                          <>
+                            <span className="text-[10px] text-gray-400">
+                              Cancel this session?
+                            </span>
+                            <button
+                              onClick={() => handleCancel(session.id)}
+                              disabled={cancellingId === session.id}
+                              className="text-[10px] font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
+                            >
+                              {cancellingId === session.id
+                                ? "Cancelling…"
+                                : "Yes, cancel"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmCancelId(null)}
+                              className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                            >
+                              Never mind
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {!isCancelled && (
                               <button
                                 onClick={() => startEdit(session)}
                                 className="text-[10px] text-gray-600 hover:text-orange-400 transition-colors"
                               >
                                 Edit
                               </button>
+                            )}
+                            {!isConfirmed && !isCancelled && (
                               <button
-                                onClick={() => setConfirmDeleteId(session.id)}
-                                className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
-                                aria-label="Delete session"
+                                onClick={() => handleConfirm(session.id)}
+                                disabled={confirmingId === session.id}
+                                className="text-[10px] text-gray-600 hover:text-gold disabled:opacity-50 transition-colors"
                               >
-                                Delete
+                                {confirmingId === session.id
+                                  ? "Booking…"
+                                  : "Mark as Booked"}
                               </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                            )}
+                            {!isCancelled && (
+                              <button
+                                onClick={() => setConfirmCancelId(session.id)}
+                                className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setConfirmDeleteId(session.id)}
+                              className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
+                              aria-label="Delete session"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Cost split (RENTED_GYM only) */}
-                {isRented && session.costTotal != null && (
+                {/* Cost split (RENTED_GYM only, not meaningful once cancelled) */}
+                {isRented && session.costTotal != null && !isCancelled && (
                   <div className="flex flex-col gap-1 rounded bg-gray-750 border border-gray-700 px-3 py-2 bg-gray-900/60">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-400">

@@ -49,6 +49,8 @@ export interface ApiError {
 
 export type VenueType = "RENTED_GYM" | "OPEN_GYM" | "PARK";
 
+export type SessionStatus = "PROPOSED" | "CONFIRMED" | "CANCELLED";
+
 export interface VenueSummary {
   id: string;
   name: string;
@@ -74,6 +76,7 @@ export interface SessionResponse {
   costTotal: number | null; // cents
   minPlayers: number | null;
   proposedById: string | null; // playerId of proposer; null for legacy rows
+  status: SessionStatus;
   rsvps: RsvpEntry[];
 }
 

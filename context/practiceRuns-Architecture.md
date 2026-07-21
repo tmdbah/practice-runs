@@ -146,6 +146,7 @@ erDiagram
         datetime date
         int costTotal
         int minPlayers
+        SessionStatus status "PROPOSED default"
     }
     Rsvp {
         string id PK
@@ -259,7 +260,7 @@ sequenceDiagram
     end
 ```
 
-Three things differ from the Phase 1/2 write path above: **(1)** the propose/edit form is *not* optimistic — it waits for the server response before closing, unlike an RSVP tap or a grid cell save, because a session's full shape (venue, cost, minPlayers) is worth confirming before dismissing the form; **(2)** `PATCH .../sessions/[sessionId]` is a whole-record replace, mirroring the `POST` body shape, and never touches the `rsvps` relation, so existing RSVPs survive an edit untouched; **(3)** `DELETE .../sessions/[sessionId]` cascade-deletes its `Rsvp` rows via the schema relation (`onDelete: Cascade`), not an application-level cleanup step. None of the Sessions endpoints check that the caller is the session's `proposedById` — the Edit/Delete buttons are hidden client-side for non-proposers, but the API trusts the caller, consistent with the rest of V1's identity model (see [§6](#6-identity--auth-architecture)).
+Four things differ from the Phase 1/2 write path above: **(1)** the propose/edit form is *not* optimistic — it waits for the server response before closing, unlike an RSVP tap or a grid cell save, because a session's full shape (venue, cost, minPlayers) is worth confirming before dismissing the form; **(2)** `PATCH .../sessions/[sessionId]` is a whole-record replace, mirroring the `POST` body shape, and never touches the `rsvps` relation, so existing RSVPs survive an edit untouched; **(3)** `DELETE .../sessions/[sessionId]` cascade-deletes its `Rsvp` rows via the schema relation (`onDelete: Cascade`), not an application-level cleanup step; **(4)** `PATCH .../sessions/[sessionId]/confirm` and `.../cancel` are small, dedicated, no-body action endpoints (mirroring `DELETE .../override`'s "Reset to Usual" precedent from §5.2) rather than routing `Session.status` transitions through the whole-record-replace edit `PATCH` — each flips exactly one field, is idempotent on repeat calls, and (also not optimistic, same reasoning as edit) waits for the server response so a mistaken "booked" flash can't mislead the team. None of the Sessions endpoints check that the caller is the session's `proposedById` — the Edit/Delete/Confirm/Cancel buttons are hidden client-side for non-proposers, but the API trusts the caller, consistent with the rest of V1's identity model (see [§6](#6-identity--auth-architecture)).
 
 ---
 
@@ -315,6 +316,8 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Prisma + `prisma migrate dev` (not `db push`) | Schema-less or push-based migrations | Explicit, reviewable migration history matters even for a small app — see `coding-standards.md` |
 | Demo team as data isolation (`Team.slug = "demo"`) | Auth/login wall in front of the whole app | Solves the actual risk (recruiter mutates real data) without adding auth scope to Phase 1 |
 | Availability grid as CSS Grid + ARIA `role="grid"` pattern (`div[role=table/row/columnheader/rowheader/cell]`) | Semantic HTML `<table>` (original Phase 1/2 implementation) | `<table>`/`table-fixed` layout didn't give per-breakpoint column control; CSS Grid does, while the explicit ARIA roles preserve the same screen-reader table semantics a real `<table>` would have provided |
+| `Session.status` as an explicit `SessionStatus` enum, set only by dedicated `/confirm`/`/cancel` endpoints, never derived from RSVP count | Compute a "confirmed" state on read from `rsvps.length >= minPlayers` | Hitting `minPlayers` doesn't mean the venue is actually booked — someone still has to call and pay. A derived field would conflate "enough people said yes" with "this is definitely happening," which is exactly the ambiguity that caused the real incident this feature addresses |
+| Cancelling a session flips `status` in place (soft state, RSVPs untouched) rather than deleting it | Delete the session and let the proposer create a new one from scratch | `DELETE` already exists for "this was a mistake, remove it entirely" — cancellation is a different case ("this was real, then fell through") where the RSVP history has ongoing value. Reusing the venue/cost/minPlayers from a cancelled session to pre-fill a new proposal (`startAlternate`) also depends on the cancelled row still existing |
 
 ---
 

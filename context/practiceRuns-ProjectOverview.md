@@ -137,6 +137,12 @@ enum VenueType {
   PARK        // free, no booking, open anytime
 }
 
+enum SessionStatus {
+  PROPOSED   // default — still gathering RSVPs, nothing booked yet
+  CONFIRMED  // proposer marked it booked for sure
+  CANCELLED  // slot fell through (e.g. venue booked by someone else) — kept as a historical record, not deleted
+}
+
 model Venue {
   id             String      @id @default(cuid())
   name           String
@@ -159,6 +165,7 @@ model Session {
   toTime       String
   costTotal    Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
   minPlayers   Int?     // RENTED_GYM only — worth booking only above this count
+  status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
 }
 
@@ -263,6 +270,8 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 | `/api/teams/[slug]/sessions/[sessionId]` | PATCH | Edit an existing session in place — whole-record replace, RSVPs untouched. No server-side proposer check (matches the DELETE/RSVP trust model; the UI only shows the button to the proposer) |
 | `/api/teams/[slug]/sessions/[sessionId]` | DELETE | Delete a session; RSVPs cascade-delete via the schema relation |
 | `/api/teams/[slug]/sessions/[sessionId]/rsvp` | PUT | Upsert the calling player's RSVP (`ANYTIME` = in, `UNAVAILABLE` = out); returns the full updated session |
+| `/api/teams/[slug]/sessions/[sessionId]/confirm` | PATCH | Mark a session booked for sure (`status` → `CONFIRMED`). Idempotent when already confirmed; 400 when cancelled. No server-side proposer check (matches Edit/Delete/RSVP's trust model) |
+| `/api/teams/[slug]/sessions/[sessionId]/cancel` | PATCH | Mark a session's slot as fallen through (`status` → `CANCELLED`) — reachable from `PROPOSED` or `CONFIRMED`, idempotent when already cancelled. Doesn't delete the session or its RSVPs; no server-side proposer check |
 
 ### Team Window Calculation
 
@@ -290,6 +299,8 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Venue admin | `/admin/venues` (list) + `/admin/venues/new` (form → `createVenue` Server Action) instead of a POST API route | Matches the "admin-added only" decision without adding auth: an unguarded, unlinked route is enough obscurity for a ~15-person group, and a Server Action skips writing a separate request/response contract for a form only one person uses |
 | Session ownership | `Session.proposedById` records who proposed it; Edit/Delete buttons are shown in the UI only when `proposedById === currentPlayerId`, but the `PATCH`/`DELETE` endpoints don't check this server-side | Matches the existing trust model (any `PATCH`/`DELETE` on `DateOverride` already trusts the caller's `playerId`) — consistent rather than partially bolting on enforcement for one endpoint |
 | Session delete confirmation | Inline "Delete this session? Yes, delete / Cancel" swap in place of the Edit/Delete buttons, not a modal | Consistent with the no-modals stance already set by optimistic saves; a inline confirm is enough friction to prevent a mis-tap without interrupting the page |
+| Session status | Explicit `PROPOSED`/`CONFIRMED`/`CANCELLED` enum, driven by manual proposer actions (`/confirm`, `/cancel`) rather than auto-computed from RSVP count | Prompted by a real incident: a `RENTED_GYM` session never hit `minPlayers` and the venue slot got taken by another team before anyone could react — there was no way to signal "this fell through" so nobody accidentally RSVPs into a dead session. Hitting `minPlayers` doesn't mean anyone actually booked/paid for the venue, so confirmation has to be a deliberate action, not a threshold crossing |
+| Cancelled sessions | `CANCELLED` sessions are kept, not deleted — RSVPs stay as a historical record of who committed to that slot — and a "Propose alternate time here" button pre-fills a *new* session from the cancelled one's venue/cost/minPlayers (date/time left blank) rather than editing the dead session's date in place | Rewriting a cancelled session's date out from under its existing RSVPs would be ambiguous (did they RSVP to the old slot or the new one?); spinning up a fresh session keeps that answer unambiguous. There's no push-notification system in this app, so the greyed-out card + "fell through" banner *is* the notification |
 
 ---
 
