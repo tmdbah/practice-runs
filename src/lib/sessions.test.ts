@@ -2,14 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    session: { findMany: vi.fn() },
+    session: { findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
-import { toSessionResponse, getSessionsForTeam } from "@/lib/sessions";
+import {
+  toSessionResponse,
+  getSessionsForTeam,
+  getSessionForTeam,
+} from "@/lib/sessions";
 import { prisma } from "@/lib/prisma";
 
 const mockSessionFindMany = vi.mocked(prisma.session.findMany);
+const mockSessionFindFirst = vi.mocked(prisma.session.findFirst);
 
 function makeSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -144,5 +149,39 @@ describe("getSessionsForTeam", () => {
     const result = await getSessionsForTeam("team1");
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("getSessionForTeam", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should query scoped to both sessionId and teamId", async () => {
+    mockSessionFindFirst.mockResolvedValueOnce(makeSession() as never);
+
+    await getSessionForTeam("team1", "s1");
+
+    expect(mockSessionFindFirst).toHaveBeenCalledWith({
+      where: { id: "s1", teamId: "team1" },
+      include: expect.any(Object),
+    });
+  });
+
+  it("should map the result through toSessionResponse when found", async () => {
+    mockSessionFindFirst.mockResolvedValueOnce(makeSession() as never);
+
+    const result = await getSessionForTeam("team1", "s1");
+
+    expect(result?.id).toBe("s1");
+    expect(result?.teamId).toBe("team1");
+  });
+
+  it("should return null when no session matches (not found, or belongs to another team)", async () => {
+    mockSessionFindFirst.mockResolvedValueOnce(null);
+
+    const result = await getSessionForTeam("team1", "s1");
+
+    expect(result).toBeNull();
   });
 });
