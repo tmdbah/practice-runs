@@ -22,7 +22,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       type: "RENTED_GYM" as const,
       address: "Chicago, IL",
       bookingUrl: "https://insznbasketball.com",
-      costPerSession: 10000,
+      costPerHour: 10000,
     },
     proposedById: "p1",
     date: new Date("2026-07-25T00:00:00.000Z"),
@@ -73,7 +73,7 @@ describe("toSessionResponse", () => {
     expect(result.venue?.type).toBe("RENTED_GYM");
     expect(result.venue?.address).toBe("Chicago, IL");
     expect(result.venue?.bookingUrl).toBe("https://insznbasketball.com");
-    expect(result.venue?.costPerSession).toBe(10000);
+    expect(result.venue?.costPerHour).toBe(10000);
   });
 
   it("should return null venue when venue is null", () => {

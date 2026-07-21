@@ -29,14 +29,12 @@ Who/what talks to the system, at the highest level.
 ```mermaid
 graph TB
     Player["Crew member<br/>(mobile browser)"]
-    Admin["Admin — TJ<br/>(adds venues)"]
     Recruiter["Portfolio viewer<br/>(recruiter, public)"]
 
     App["Practice Runs<br/>Next.js app on Vercel"]
     DB[("Neon Postgres")]
 
-    Player -->|"HTTPS · tap-to-edit grid, propose/RSVP sessions"| App
-    Admin -->|"HTTPS · venue form (/admin/venues/new)"| App
+    Player -->|"HTTPS · tap-to-edit grid, propose/RSVP sessions, add/edit/delete venues"| App
     Recruiter -->|"HTTPS · /team/demo only"| App
     App -->|"Prisma / SQL"| DB
 ```
@@ -136,7 +134,7 @@ erDiagram
         string name
         VenueType type
         string address
-        int costPerSession
+        int costPerHour
     }
     Session {
         string id PK
@@ -310,7 +308,8 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Optimistic writes with client-side revert | Confirm-then-render (wait for server before updating UI) | Save failures are rare and reversible; optimism matches the "few taps, no friction" product goal |
 | Sessions/Venues as a separate data model (own tables, only weak FK links to Team/Player) | Extend `DayDefault`/`DateOverride` with session-like fields | The two features don't share state or lifecycle; coupling them would force the grid schema to carry Sessions' concerns (cost, RSVP, headcount) permanently |
 | Sessions rendered on the existing `/team/[slug]` route, no `/team/[slug]/sessions` page | A dedicated Sessions route | Same device/identity context, no data sharing needed at the routing layer either; a second route is pure navigation overhead for a single-page mobile app |
-| Venue creation as a Server Action behind an unguarded `/admin/venues/new` page, not a POST API route | A `/api/.../venues` POST endpoint | No client outside the admin form ever needs to create a venue, so a Server Action avoids writing and maintaining a request/response contract nothing else calls |
+| Venue create/edit/delete as Server Actions (`/venues/new`, `/venues/[venueId]/edit`, `/venues/[venueId]/delete`), not POST/PATCH/DELETE API routes | API routes for venue mutations | No client outside these forms ever needs a typed JSON contract for venue writes, so Server Actions avoid maintaining one nothing else calls — same rationale as the original admin-only version, now open to all players, not a security boundary either way |
+| Venue deletion blocked (throws) when any `Session` still references it, checked in the Server Action rather than relying on the schema's `onDelete` behavior | Cascade-null `Session.venueId` on venue delete (Prisma's actual default for this optional relation) | The default would silently erase which venue a past session used; an explicit app-level guard makes that failure loud instead of quietly corrupting session history |
 | Session `Edit`/`Delete` authorization is UI-only (`proposedById === currentPlayerId` gates the buttons; the API doesn't check it) | Server-side ownership check on `PATCH`/`DELETE` | Consistent with every other V1 write path (`DayDefault`/`DateOverride`/`Rsvp` all trust the caller's `playerId` as-is) — see [§6.1](#61-v1v4-client-stored-identity-no-server-side-auth). Partial enforcement on one endpoint would be a false sense of security, not real access control |
 | Manual pull-to-refresh / refetch-on-focus | WebSocket or polling-based real-time sync | No evidence of a staleness problem at this scale; real-time infra is pure added complexity until it's a real complaint |
 | Prisma + `prisma migrate dev` (not `db push`) | Schema-less or push-based migrations | Explicit, reviewable migration history matters even for a small app — see `coding-standards.md` |

@@ -24,7 +24,9 @@ export function toSessionResponse(
           type: session.venue.type,
           address: session.venue.address,
           bookingUrl: session.venue.bookingUrl,
-          costPerSession: session.venue.costPerSession,
+          costPerHour: session.venue.costPerHour,
+          openTime: session.venue.openTime,
+          closeTime: session.venue.closeTime,
         }
       : null,
     date: session.date.toISOString(),

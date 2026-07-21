@@ -56,18 +56,21 @@ async function main(): Promise<void> {
     `Seeded demo team "${team.name}" (slug: ${team.slug}) with ${DEMO_PLAYERS.length} players.`,
   );
 
-  // Seed INSZN as the first venue (admin-added, RENTED_GYM)
-  // costPerSession: ~$100 per 2hr session, stored in cents
+  // Seed INSZN as the first venue (RENTED_GYM)
+  // costPerHour: $50/hour, stored in cents (1hr=$50, 2hr=$100, 3hr=$150 per their booking site)
+  // hours: roughly 6am-9pm per the booking site's earliest/latest appointment slots
   await prisma.venue.upsert({
     where: { id: "inszn-venue" },
-    update: {},
+    update: { costPerHour: 5000, openTime: "06:00", closeTime: "21:00" },
     create: {
       id: "inszn-venue",
       name: "INSZN",
       type: "RENTED_GYM",
       address: "Charlotte, NC",
       bookingUrl: "https://insznbasketball.com",
-      costPerSession: 10000, // $100.00 in cents
+      costPerHour: 5000, // $50.00/hour in cents
+      openTime: "06:00",
+      closeTime: "21:00",
     },
   });
 

@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import Link from "next/link";
 import { useIdentity } from "@/hooks/use-identity";
 import { formatTime } from "@/lib/format-time";
+import { VENUE_TYPE_LABELS } from "@/types/api";
 import type { SessionResponse, VenueSummary } from "@/types/api";
 
 interface Props {
@@ -13,12 +15,6 @@ interface Props {
   venues: VenueSummary[];
 }
 
-const VENUE_TYPE_LABELS: Record<string, string> = {
-  RENTED_GYM: "Rented Gym",
-  OPEN_GYM: "Open Gym",
-  PARK: "Park",
-};
-
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -26,6 +22,21 @@ function formatCents(cents: number): string {
 function costPerPerson(costTotal: number, inCount: number): string {
   if (inCount === 0) return "—";
   return formatCents(Math.ceil(costTotal / inCount));
+}
+
+/** Estimates a session's total cost from a venue's hourly rate and the chosen time range. Returns null if the range isn't computable (missing/invalid times). */
+function estimateCostFromHourlyRate(
+  costPerHourCents: number,
+  fromTime: string,
+  toTime: string,
+): number | null {
+  if (!fromTime || !toTime) return null;
+  const [fromHours, fromMinutes] = fromTime.split(":").map(Number);
+  const [toHours, toMinutes] = toTime.split(":").map(Number);
+  const durationMinutes =
+    toHours * 60 + toMinutes - (fromHours * 60 + fromMinutes);
+  if (!(durationMinutes > 0)) return null;
+  return (costPerHourCents / 100) * (durationMinutes / 60);
 }
 
 export function SessionsView({
@@ -107,9 +118,34 @@ export function SessionsView({
   const [toTime, setToTime] = useState("");
   const [costTotal, setCostTotal] = useState("");
   const [minPlayers, setMinPlayers] = useState("");
+  // Tracks whether the proposer has typed into the cost field themselves —
+  // once true, time/venue changes stop auto-filling it so we never clobber
+  // a deliberate override.
+  const [costManuallyEdited, setCostManuallyEdited] = useState(false);
 
   const selectedVenue = venues.find((v) => v.id === venueId) ?? null;
   const isRentedGym = selectedVenue?.type === "RENTED_GYM";
+  const estimatedCost =
+    selectedVenue?.costPerHour != null
+      ? estimateCostFromHourlyRate(selectedVenue.costPerHour, fromTime, toTime)
+      : null;
+
+  /** Recomputes and fills the total-cost field from the venue's hourly rate x chosen duration, unless the proposer has already typed their own value in. */
+  function maybeAutoFillCost(
+    nextVenueId: string,
+    nextFromTime: string,
+    nextToTime: string,
+  ): void {
+    if (costManuallyEdited) return;
+    const venue = venues.find((v) => v.id === nextVenueId) ?? null;
+    if (venue?.type !== "RENTED_GYM" || venue.costPerHour == null) return;
+    const estimate = estimateCostFromHourlyRate(
+      venue.costPerHour,
+      nextFromTime,
+      nextToTime,
+    );
+    if (estimate != null) setCostTotal(estimate.toFixed(2));
+  }
 
   function resetForm(): void {
     setShowForm(false);
@@ -120,6 +156,7 @@ export function SessionsView({
     setToTime("");
     setCostTotal("");
     setMinPlayers("");
+    setCostManuallyEdited(false);
     setProposalError(null);
   }
 
@@ -131,6 +168,8 @@ export function SessionsView({
     setToTime(session.toTime);
     setCostTotal(session.costTotal != null ? String(session.costTotal / 100) : "");
     setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
+    // Editing an existing session shouldn't silently recompute its already-agreed cost.
+    setCostManuallyEdited(true);
     setProposalError(null);
     setShowForm(true);
   }
@@ -144,6 +183,8 @@ export function SessionsView({
     setToTime("");
     setCostTotal(session.costTotal != null ? String(session.costTotal / 100) : "");
     setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
+    // A fresh proposal — let auto-fill recompute once new times are picked.
+    setCostManuallyEdited(false);
     setProposalError(null);
     setShowForm(true);
   }
@@ -256,12 +297,20 @@ export function SessionsView({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">Sessions</h2>
-        <button
-          onClick={() => (showForm ? resetForm() : setShowForm(true))}
-          className="rounded-md bg-orange-600 hover:bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors"
-        >
-          {showForm ? "Cancel" : "+ Propose"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => (showForm ? resetForm() : setShowForm(true))}
+            className="rounded-md bg-orange-600 hover:bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors"
+          >
+            {showForm ? "Cancel" : "+ Propose"}
+          </button>
+          <Link
+            href={`/venues?from=${encodeURIComponent(slug)}`}
+            className="rounded-md bg-gray-700 hover:bg-gray-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors"
+          >
+            Venues
+          </Link>
+        </div>
       </div>
 
       {showForm && (
@@ -278,7 +327,10 @@ export function SessionsView({
               <label className="text-xs text-gray-400">Venue</label>
               <select
                 value={venueId}
-                onChange={(e) => setVenueId(e.target.value)}
+                onChange={(e) => {
+                  setVenueId(e.target.value);
+                  maybeAutoFillCost(e.target.value, fromTime, toTime);
+                }}
                 className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 {venues.map((v) => (
@@ -308,7 +360,10 @@ export function SessionsView({
                 type="time"
                 required
                 value={fromTime}
-                onChange={(e) => setFromTime(e.target.value)}
+                onChange={(e) => {
+                  setFromTime(e.target.value);
+                  maybeAutoFillCost(venueId, e.target.value, toTime);
+                }}
                 className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
               />
             </div>
@@ -318,7 +373,10 @@ export function SessionsView({
                 type="time"
                 required
                 value={toTime}
-                onChange={(e) => setToTime(e.target.value)}
+                onChange={(e) => {
+                  setToTime(e.target.value);
+                  maybeAutoFillCost(venueId, fromTime, e.target.value);
+                }}
                 className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
               />
             </div>
@@ -333,12 +391,17 @@ export function SessionsView({
                   min="0"
                   step="0.01"
                   placeholder={
-                    selectedVenue?.costPerSession != null
-                      ? String(selectedVenue.costPerSession / 100)
-                      : "100.00"
+                    estimatedCost != null
+                      ? estimatedCost.toFixed(2)
+                      : selectedVenue?.costPerHour != null
+                        ? String(selectedVenue.costPerHour / 100)
+                        : "100.00"
                   }
                   value={costTotal}
-                  onChange={(e) => setCostTotal(e.target.value)}
+                  onChange={(e) => {
+                    setCostTotal(e.target.value);
+                    setCostManuallyEdited(true);
+                  }}
                   className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>

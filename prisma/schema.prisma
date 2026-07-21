@@ -86,7 +86,9 @@ model Venue {
   type           VenueType
   address        String?
   bookingUrl     String?
-  costPerSession Int? // cents — typical/last-used cost, RENTED_GYM only
+  costPerHour    Int? // cents — hourly rate, RENTED_GYM only
+  openTime       String? // "HH:MM" — informational hours-of-operation, not validated against Session times
+  closeTime      String? // "HH:MM"
   sessions       Session[]
 }
 

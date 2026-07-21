@@ -256,8 +256,8 @@
     <div class="decision">
       <div class="tag">Venues</div>
       <div class="body">
-        <strong>Admin-added only, not open submission</strong>
-        <p>Adding a venue (name, address, cost, hours) is a simple form only the admin uses for now — not something any player can submit directly. Open submission would need approval/moderation logic for a problem this group doesn't have yet. If a player knows a venue, they say so the same way they do today (message the group/admin) — the app just gives the admin a place to enter it once suggested.</p>
+        <strong>Open to any player &mdash; add, edit, or delete, no approval step</strong>
+        <p>Adding a venue (name, address, cost, hours) was originally admin-only, routing every suggestion through TJ &mdash; a real bottleneck for a group where players often already have the address/cost info themselves. Reversed: any player can add, edit, or delete a venue directly, matching the trust model every other write in this app already uses. Deleting a venue that still has sessions attached is blocked with an error rather than silently orphaning that session's venue reference.</p>
       </div>
     </div>
     <div class="decision">
@@ -317,10 +317,10 @@
       </div>
     </div>
     <div class="decision">
-      <div class="tag">Venue admin</div>
+      <div class="tag">Venue management</div>
       <div class="body">
-        <strong>Server Action page, not a POST API route</strong>
-        <p><code>/admin/venues</code> (list) + <code>/admin/venues/new</code> (form &rarr; <code>createVenue</code> Server Action) implement the "admin-added only" decision without adding auth: an unguarded, unlinked route is enough obscurity for a ~15-person group, and a Server Action skips writing a separate request/response contract for a form only one person uses.</p>
+        <strong>Server Action pages, not POST/PATCH/DELETE API routes</strong>
+        <p><code>/venues</code> (list) + <code>/venues/new</code> (create) + <code>/venues/[venueId]/edit</code> + <code>/venues/[venueId]/delete</code> (<code>createVenue</code>/<code>updateVenue</code>/<code>deleteVenue</code> Server Actions), open to any player: no client outside these forms ever needs a typed JSON contract for venue writes, so Server Actions skip maintaining one nothing else calls.</p>
       </div>
     </div>
     <div class="decision">
@@ -549,7 +549,7 @@ model Venue {
   type          VenueType
   address       String?
   bookingUrl    String?
-  costPerSession Int?       // cents — typical/last-used cost, RENTED_GYM only
+  costPerHour    Int?       // cents — hourly rate, RENTED_GYM only
   sessions      Session[]
 }
 
@@ -591,8 +591,8 @@ model Rsvp {
       <tr><td>Choosing between externally-offered slots (7&ndash;9 vs 8&ndash;10)</td><td><span class="badge coral">Gap</span> &mdash; Team Window only reflects internal overlap; a session is a single proposed slot, not a set of options to compare (editable after the fact, but no side-by-side picker)</td></tr>
       <tr><td>&quot;Need at least 10 of us&quot; threshold (only matters when paying to rent)</td><td><span class="badge teal">Shipped</span> &mdash; <code>Session.minPlayers</code>, <code>RENTED_GYM</code> only, live RSVP-count-vs-threshold display</td></tr>
       <tr><td>Cost split ($100 &divide; confirmed count)</td><td><span class="badge teal">Shipped</span> &mdash; <code>Session.costTotal</code>, <code>RENTED_GYM</code> only, live cost/person now + cost at <code>minPlayers</code></td></tr>
-      <tr><td>Three venue types: rented gym (exclusive, paid) vs open gym (public, casual, team plays as a unit) vs park (free, anytime)</td><td><span class="badge teal">Shipped</span>, one entry seeded &mdash; INSZN (~$100/2hrs, RENTED_GYM) via <code>prisma/seed.ts</code>; more venues addable through <code>/admin/venues/new</code></td></tr>
-      <tr><td>Who's allowed to add a venue to the app</td><td><span class="badge teal">Shipped</span> &mdash; admin-added only, via unguarded <code>/admin/venues/new</code> Server Action route</td></tr>
+      <tr><td>Three venue types: rented gym (exclusive, paid) vs open gym (public, casual, team plays as a unit) vs park (free, anytime)</td><td><span class="badge teal">Shipped</span>, one entry seeded &mdash; INSZN (~$50/hr, RENTED_GYM) via <code>prisma/seed.ts</code>; more venues addable through <code>/venues/new</code></td></tr>
+      <tr><td>Who's allowed to add a venue to the app</td><td><span class="badge teal">Shipped</span> &mdash; open to any player via <code>/venues/new</code>, plus edit/delete, no approval step</td></tr>
       <tr><td>Players skipping a league/venue because it's too far to get to consistently</td><td><span class="badge amber">Deferred, not built</span> &mdash; <code>Venue.address</code> is live and shown on session cards; a real distance-from-player feature (e.g. Maps API) is intentionally not scoped yet</td></tr>
       <tr><td>Full roster (Trevor appeared in chat, wasn't on the list given earlier)</td><td><span class="badge amber">Action needed</span> &mdash; pull the authoritative roster from the group directly, don't reconstruct from scattered messages</td></tr>
       <tr><td>&quot;I'm out this Sunday but otherwise usual&quot; (Moody)</td><td><span class="badge teal">Covered</span> &mdash; This Week override falls back to Usual</td></tr>
@@ -600,7 +600,7 @@ model Rsvp {
     </table>
   </div>
   <div class="card out-of-scope">
-    <p><strong>Shipped:</strong> INSZN is a real, usable first venue entry (name, type, approximate cost). Address and hours can be filled in when convenient. Additional venues get added the same way as they come up via <code>/admin/venues/new</code>.</p>
+    <p><strong>Shipped:</strong> INSZN is a real, usable first venue entry (name, type, approximate cost, hours). Additional venues get added by any player via <code>/venues/new</code> as they come up, no admin bottleneck.</p>
   </div>
   <p><strong>Recommendation:</strong> Phases 1&ndash;3 have shipped (recurring grid, then Sessions &amp; venues). Next up is Phase 4 polish &mdash; see Build phases.</p>
 </section>
@@ -634,8 +634,10 @@ model Rsvp {
   <table>
     <tr><th>Route</th><th>Purpose</th></tr>
     <tr><td><code>/team/[slug]</code></td><td>Home — grid (This Week / Usual toggle, tap-to-edit) with the Sessions list rendered below it on the same page; also renders the first-visit <code>NamePicker</code> when no valid identity is stored</td></tr>
-    <tr><td><code>/admin/venues</code></td><td>Venue list (Server Component, reads <code>Venue</code> directly)</td></tr>
-    <tr><td><code>/admin/venues/new</code></td><td>Add-venue form &rarr; <code>createVenue</code> Server Action. Unguarded, unlinked from the main UI &mdash; "admin-added only" by obscurity, not auth</td></tr>
+    <tr><td><code>/venues</code></td><td>Venue list (Server Component, reads <code>Venue</code> directly), linked from the team page&#39;s Sessions header. Open to any player</td></tr>
+    <tr><td><code>/venues/new</code></td><td>Add-venue form &rarr; <code>createVenue</code> Server Action</td></tr>
+    <tr><td><code>/venues/[venueId]/edit</code></td><td>Edit-venue form &rarr; <code>updateVenue</code> Server Action. No ownership check</td></tr>
+    <tr><td><code>/venues/[venueId]/delete</code></td><td>Delete confirmation page &rarr; <code>deleteVenue</code> Server Action. Blocked if any session still references the venue</td></tr>
   </table>
   <table style="margin-top:16px;">
     <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
@@ -672,7 +674,7 @@ model Rsvp {
     <div class="rail"><div class="dot">3</div><div class="stem"></div></div>
     <div class="content">
       <h3>Sessions &amp; venues <span class="badge teal" style="margin-left:6px;">Done</span></h3>
-      <p>Propose, edit, and delete a one-off session at a rented gym, open gym, or park. RSVP in/out, and for rented-gym sessions, a live cost split and a minimum-headcount check before it's worth booking. INSZN is seeded as the first venue; more get added via <code>/admin/venues/new</code> as they come up, admin-added only.</p>
+      <p>Propose, edit, and delete a one-off session at a rented gym, open gym, or park. RSVP in/out, and for rented-gym sessions, a live cost split and a minimum-headcount check before it's worth booking. INSZN is seeded as the first venue; more get added by any player via <code>/venues/new</code> as they come up, no admin bottleneck.</p>
     </div>
   </div>
   <div class="phase-row">

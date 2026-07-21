@@ -85,7 +85,7 @@ npm run lint     # Run ESLint
 - **Optimistic, no-confirmation saves:** tapping Save updates the cell instantly, before the network call resolves, then closes the drawer. On failure the cell reverts with an inline error. No toasts, no modals.
 - **Manual pull-to-refresh, not real-time sync:** no websockets or polling. Right-sized for ~15 people; revisit only if staleness actually becomes a complaint.
 - **Sessions (Phase 3, shipped) are a separate data model, not bolted onto the grid:** recurring availability (`DayDefault`/`DateOverride`) and one-off session planning (`Venue`/`Session`/`Rsvp`) don't share state, by design — see the Gap analysis section of the overview doc. The `SessionsView` UI renders on the same `/team/[slug]` page, directly below the grid — one route, no separate Sessions page.
-- **Venue admin is a Server Action page, not an API route:** `/admin/venues` (list) + `/admin/venues/new` (form → `createVenue` Server Action) — unguarded route, no auth, matching the "admin-added only" decision without adding a login wall.
+- **Venue management is Server Action pages, not API routes:** `/venues` (list) + `/venues/new` (create) + `/venues/[venueId]/edit` + `/venues/[venueId]/delete` (`createVenue`/`updateVenue`/`deleteVenue` Server Actions) — open to any player, no auth, no ownership check, matching the trust model used everywhere else (`DateOverride`/`Session`/`Rsvp`). `deleteVenue` blocks (throws) when sessions still reference the venue, since `Session.venueId` is optional with no explicit `onDelete` and Prisma's default for that would otherwise silently null it out rather than error.
 - **Portfolio/demo safety without auth:** a seeded `/team/demo` team with fake data, reset daily, is the actual fix for "a recruiter could break real team data" — not a login wall. The real team's URL is simply never posted publicly.
 
 ---
@@ -108,7 +108,6 @@ npm run lint     # Run ESLint
 - [ ] Build real auth (NextAuth) before Phase 5's trigger is actually met
 - [ ] Merge the Sessions/Venue data model into the availability grid's tables — they're deliberately separate
 - [ ] Add real-time sync (websockets/polling) — manual pull-to-refresh is the intentional V1/V2 choice
-- [ ] Open venue submission to all players — admin-added only for now
 - [ ] Hardcode `Session.minPlayers` — it's an open team decision, kept editable per session
 - [ ] Add stat-sheet consolidation or push notifications — explicitly out of scope for now
 

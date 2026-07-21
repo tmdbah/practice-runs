@@ -49,6 +49,12 @@ export interface ApiError {
 
 export type VenueType = "RENTED_GYM" | "OPEN_GYM" | "PARK";
 
+export const VENUE_TYPE_LABELS: Record<VenueType, string> = {
+  RENTED_GYM: "Rented Gym",
+  OPEN_GYM: "Open Gym",
+  PARK: "Park",
+};
+
 export type SessionStatus = "PROPOSED" | "CONFIRMED" | "CANCELLED";
 
 export interface VenueSummary {
@@ -57,7 +63,9 @@ export interface VenueSummary {
   type: VenueType;
   address: string | null;
   bookingUrl: string | null;
-  costPerSession: number | null; // cents
+  costPerHour: number | null; // cents
+  openTime: string | null; // "HH:MM"
+  closeTime: string | null; // "HH:MM"
 }
 
 export interface RsvpEntry {

@@ -1,15 +1,27 @@
 import Link from "next/link";
-import { createVenue } from "../actions";
+import { notFound } from "next/navigation";
+import { getVenueById } from "@/lib/venues";
+import { updateVenue } from "../../actions";
 
 interface PageProps {
+  params: Promise<{ venueId: string }>;
   searchParams: Promise<{ from?: string }>;
 }
 
-export default async function NewVenuePage({
+export default async function EditVenuePage({
+  params,
   searchParams,
 }: PageProps): Promise<React.ReactElement> {
+  const { venueId } = await params;
   const { from } = await searchParams;
+  const venue = await getVenueById(venueId);
+
+  if (!venue) {
+    notFound();
+  }
+
   const fromQuery = from ? `?from=${encodeURIComponent(from)}` : "";
+  const boundUpdateVenue = updateVenue.bind(null, venueId);
 
   return (
     <div className="min-h-screen bg-bg text-text px-3 py-4 flex justify-center">
@@ -22,14 +34,14 @@ export default async function NewVenuePage({
         </Link>
 
         <header className="mb-4 px-3 py-2 rounded-xl bg-surface border border-border">
-          <div className="text-sm font-bold leading-tight">Add Venue</div>
+          <div className="text-sm font-bold leading-tight">Edit Venue</div>
           <div className="text-[10px] uppercase tracking-wide text-text-mute leading-tight">
-            New Location
+            {venue.name}
           </div>
         </header>
 
         <div className="rounded-xl bg-surface border border-border p-4">
-          <form action={createVenue} className="flex flex-col gap-4">
+          <form action={boundUpdateVenue} className="flex flex-col gap-4">
             <input type="hidden" name="from" value={from ?? ""} />
             <div className="flex flex-col gap-1">
               <label htmlFor="name" className="text-xs font-medium text-text-dim">
@@ -40,6 +52,7 @@ export default async function NewVenuePage({
                 name="name"
                 type="text"
                 required
+                defaultValue={venue.name}
                 className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent"
               />
             </div>
@@ -52,6 +65,7 @@ export default async function NewVenuePage({
                 id="type"
                 name="type"
                 required
+                defaultValue={venue.type}
                 className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent"
               >
                 <option value="RENTED_GYM">Rented Gym</option>
@@ -71,6 +85,7 @@ export default async function NewVenuePage({
                 id="address"
                 name="address"
                 type="text"
+                defaultValue={venue.address ?? ""}
                 className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent"
               />
             </div>
@@ -86,6 +101,7 @@ export default async function NewVenuePage({
                 id="bookingUrl"
                 name="bookingUrl"
                 type="url"
+                defaultValue={venue.bookingUrl ?? ""}
                 className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent"
               />
             </div>
@@ -104,6 +120,11 @@ export default async function NewVenuePage({
                 min="0"
                 step="0.01"
                 placeholder="50.00"
+                defaultValue={
+                  venue.costPerHour != null
+                    ? (venue.costPerHour / 100).toFixed(2)
+                    : ""
+                }
                 className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent"
               />
             </div>
@@ -120,6 +141,7 @@ export default async function NewVenuePage({
                   id="openTime"
                   name="openTime"
                   type="time"
+                  defaultValue={venue.openTime ?? ""}
                   className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent [color-scheme:dark]"
                 />
               </div>
@@ -134,6 +156,7 @@ export default async function NewVenuePage({
                   id="closeTime"
                   name="closeTime"
                   type="time"
+                  defaultValue={venue.closeTime ?? ""}
                   className="rounded-lg bg-surface-2 border border-border px-3 py-2 text-text text-sm focus:outline-none focus:border-accent [color-scheme:dark]"
                 />
               </div>
@@ -143,7 +166,7 @@ export default async function NewVenuePage({
               type="submit"
               className="mt-2 w-full rounded-xl bg-accent hover:bg-accent-dim text-bg font-semibold py-3 transition-colors"
             >
-              Add Venue
+              Save Changes
             </button>
           </form>
         </div>
