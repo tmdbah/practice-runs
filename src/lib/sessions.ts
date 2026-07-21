@@ -56,3 +56,17 @@ export async function getSessionsForTeam(
 
   return sessions.map(toSessionResponse);
 }
+
+/** Fetches a single session scoped to a team, mapped to the API response shape. Returns null if not found or not owned by this team. */
+export async function getSessionForTeam(
+  teamId: string,
+  sessionId: string,
+): Promise<SessionResponse | null> {
+  const session = await prisma.session.findFirst({
+    where: { id: sessionId, teamId },
+    include: sessionInclude,
+  });
+  if (!session) return null;
+
+  return toSessionResponse(session);
+}

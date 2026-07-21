@@ -4,7 +4,9 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { useIdentity } from "@/hooks/use-identity";
-import { formatTime } from "@/lib/format-time";
+import { putRsvp, RsvpError } from "@/lib/session-rsvp";
+import { SessionHeader, SessionCostAndRsvps } from "@/components/SessionSummary";
+import { ShareButton } from "@/components/ShareButton";
 import { VENUE_TYPE_LABELS } from "@/types/api";
 import type { SessionResponse, VenueSummary } from "@/types/api";
 
@@ -13,15 +15,6 @@ interface Props {
   sessions: SessionResponse[];
   setSessions: Dispatch<SetStateAction<SessionResponse[]>>;
   venues: VenueSummary[];
-}
-
-function formatCents(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
-function costPerPerson(costTotal: number, inCount: number): string {
-  if (inCount === 0) return "—";
-  return formatCents(Math.ceil(costTotal / inCount));
 }
 
 /** Estimates a session's total cost from a venue's hourly rate and the chosen time range. Returns null if the range isn't computable (missing/invalid times). */
@@ -264,32 +257,21 @@ export function SessionsView({
     );
 
     try {
-      const res = await fetch(`/api/teams/${slug}/sessions/${sessionId}/rsvp`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: currentPlayerId, status }),
+      const updated = await putRsvp(slug, sessionId, currentPlayerId, status);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? updated : s)),
+      );
+      setRsvpErrors((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
       });
-      if (!res.ok) {
-        const errBody = (await res.json()) as { error?: string };
-        setSessions(prevSessions);
-        setRsvpErrors((prev) => ({
-          ...prev,
-          [sessionId]: errBody.error ?? "RSVP failed",
-        }));
-      } else {
-        const updated = (await res.json()) as SessionResponse;
-        setSessions((prev) =>
-          prev.map((s) => (s.id === sessionId ? updated : s)),
-        );
-        setRsvpErrors((prev) => {
-          const next = { ...prev };
-          delete next[sessionId];
-          return next;
-        });
-      }
-    } catch {
+    } catch (err) {
       setSessions(prevSessions);
-      setRsvpErrors((prev) => ({ ...prev, [sessionId]: "Network error" }));
+      setRsvpErrors((prev) => ({
+        ...prev,
+        [sessionId]: err instanceof RsvpError ? err.message : "Network error",
+      }));
     }
   }
 
@@ -452,15 +434,9 @@ export function SessionsView({
                 : a.fromTime.localeCompare(b.fromTime),
             )
             .map((session) => {
-            const inRsvps = session.rsvps.filter((r) => r.status === "ANYTIME");
-            const outRsvps = session.rsvps.filter(
-              (r) => r.status === "UNAVAILABLE",
-            );
             const myRsvp = currentPlayerId
               ? session.rsvps.find((r) => r.playerId === currentPlayerId)
               : null;
-            const isRented = session.venue?.type === "RENTED_GYM";
-            const sessionDate = new Date(session.date);
             const isCancelled = session.status === "CANCELLED";
             const isConfirmed = session.status === "CONFIRMED";
             const isProposer =
@@ -474,44 +450,18 @@ export function SessionsView({
                   isCancelled ? "opacity-60" : ""
                 }`}
               >
-                {isCancelled && (
-                  <p className="text-xs font-semibold text-red-400 bg-red-950/40 border border-red-900 rounded px-2 py-1">
-                    This slot fell through — no longer available.
-                  </p>
-                )}
-
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-white flex items-center gap-2">
-                      {session.venue?.name ?? "TBD"}
-                      {isConfirmed && (
-                        <span className="text-[10px] font-bold text-gold bg-gold-soft border border-gold/40 rounded px-1.5 py-0.5">
-                          Booked ✓
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      {sessionDate.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        timeZone: "UTC",
-                      })}{" "}
-                      · {formatTime(session.fromTime)}–
-                      {formatTime(session.toTime)}
-                    </p>
-                    {session.venue && (
-                      <p className="text-xs text-gray-500">
-                        {VENUE_TYPE_LABELS[session.venue.type]}
-                        {session.venue.address
-                          ? ` · ${session.venue.address}`
-                          : ""}
-                      </p>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <SessionHeader session={session} />
                   </div>
                   {/* RSVP buttons + proposer actions */}
                   <div className="flex flex-col items-end gap-1 shrink-0">
+                    <ShareButton
+                      path={`/team/${slug}/sessions/${session.id}`}
+                      title={session.venue?.name ?? "Session"}
+                      text="Check out this session"
+                    />
                     {isCancelled ? (
                       currentPlayerId && (
                         <button
@@ -637,54 +587,8 @@ export function SessionsView({
                   </div>
                 </div>
 
-                {/* Cost split (RENTED_GYM only, not meaningful once cancelled) */}
-                {isRented && session.costTotal != null && !isCancelled && (
-                  <div className="flex flex-col gap-1 rounded bg-gray-750 border border-gray-700 px-3 py-2 bg-gray-900/60">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">
-                        RSVP&apos;d:{" "}
-                        <span className="text-white font-semibold">
-                          {inRsvps.length}
-                          {session.minPlayers != null
-                            ? ` / ${session.minPlayers}`
-                            : ""}
-                        </span>
-                      </span>
-                      <span
-                        className={
-                          session.minPlayers != null &&
-                          inRsvps.length >= session.minPlayers
-                            ? "text-green-400 text-xs font-semibold"
-                            : "text-yellow-400 text-xs"
-                        }
-                      >
-                        {session.minPlayers != null
-                          ? inRsvps.length >= session.minPlayers
-                            ? "✓ Enough to book"
-                            : `Need ${session.minPlayers - inRsvps.length} more`
-                          : null}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-400">Cost / person now</span>
-                      <span className="text-white font-semibold">
-                        {costPerPerson(session.costTotal, inRsvps.length)}
-                      </span>
-                    </div>
-                    {session.minPlayers != null && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-400">
-                          Cost if {session.minPlayers} join
-                        </span>
-                        <span className="text-white font-semibold">
-                          {formatCents(
-                            Math.ceil(session.costTotal / session.minPlayers),
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Cost split + headcount + RSVP list — full card width, below the header/actions row */}
+                <SessionCostAndRsvps session={session} />
 
                 {/* RSVP error */}
                 {rsvpErrors[session.id] && (
@@ -692,21 +596,6 @@ export function SessionsView({
                     {rsvpErrors[session.id]}
                   </p>
                 )}
-
-                {/* RSVP list */}
-                <div className="flex gap-4 text-xs text-gray-400">
-                  {inRsvps.length > 0 && (
-                    <span>
-                      ✅ {inRsvps.map((r) => r.playerName).join(", ")}
-                    </span>
-                  )}
-                  {outRsvps.length > 0 && (
-                    <span>
-                      ❌ {outRsvps.map((r) => r.playerName).join(", ")}
-                    </span>
-                  )}
-                  {session.rsvps.length === 0 && <span>No RSVPs yet</span>}
-                </div>
               </li>
             );
           })}
