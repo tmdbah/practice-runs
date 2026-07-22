@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Onboarding Tour
+# Current Feature: Recreation Center Venue Type
 
 ## Merge Target
 
@@ -16,27 +16,23 @@ Completed
 
 <!-- Goals & requirements -->
 
-Phase 4's first slice: a short, dismissible, first-visit onboarding walkthrough so a brand-new player learns the core loop without asking in the group chat. Full implementation plan: `/Users/tmdbah/.claude/plans/recursive-riding-river.md`.
+Add a fourth `VenueType` value, `RECREATION_CENTER`, to the venue-type picker used on `/venues/new` and `/venues/[venueId]/edit`. Full implementation plan: `/Users/tmdbah/.claude/plans/modular-finding-cupcake.md`.
 
-- Resolves the open question in `practiceRuns-ProjectOverview.md` (coach-marks library vs. scripted first-session state) in favor of scripted first-session state: the tour spotlights the player's own real Monday cell and has them actually tap/save it (their row starts all-`UNAVAILABLE`, so this is also their first real data entry), rather than narrating over a passive overlay. No new dependency (no react-joyride/driver.js/shepherd.js).
-- Shown once, only immediately after a brand-new player picks their name for the first time (`NamePicker`'s `onSelect`) — never for returning players with a valid stored identity. Persisted via a `hasSeenTour` flag in `localStorage`, key `practice-runs:tour:${slug}`, mirroring the existing per-team identity mechanism (`use-identity.ts`) exactly, including its dual-`useSyncExternalStore` hydration-safe pattern.
-- **v2 resequence (current):** five steps, causally ordered per user feedback on v1's flow — `usual` (spotlight the player's own Monday cell, grid forced into Usual mode, real tap→save) → `toggle` (spotlight the toggle bar, real tap advances, forced into this-week mode regardless of which button) → `overrides` (spotlight the *same* Monday cell, now shown faded/inherited — explain-only, no second edit, "Next") → `team-window` (spotlight the Team Window card, copy references the actual gold-highlight/swipe UI, "Next") → `sessions` (spotlight the Game Day + Sessions wrapper, owned by `TeamGrid` not `AvailabilityGrid` since that section lives outside the grid component, "Got it"). A "Step X of 5" indicator was added to the tooltip. "Skip tour" available at every step; `hasSeenTour` is written only on skip or the final "Got it", never mid-flight.
-- New files only: `src/lib/tour-steps.ts` (pure step-sequencing reducer + copy), `src/lib/tour-position.ts` (pure tooltip-placement math), `src/hooks/use-tour.ts` (localStorage persistence), `src/components/OnboardingTour.tsx` (presentational spotlight+tooltip overlay). `TeamGrid.tsx` and `AvailabilityGrid.tsx` get additive changes (new optional props, refs on already-existing elements, a second `OnboardingTour` mount in `TeamGrid` for the `sessions` step); `NamePicker.tsx`, `GridCell.tsx`, `TeamWindowCard.tsx`, `EditDrawer.tsx`, `SessionsView.tsx`, `SessionsSection.tsx` are unmodified.
-- Zero backend/schema impact — no Prisma migration, no API route changes.
+- User confirmed a Recreation Center is free/public — same cost-gating behavior as `OPEN_GYM`/`PARK` (no cost-per-hour field, no per-session cost split or minPlayers "worth booking" threshold), not the paid/booked behavior `RENTED_GYM` gets.
+- Purely additive: new enum value in `prisma/schema.prisma` + a migration, the string added to `VenueType`/`VENUE_TYPE_LABELS` in `src/types/api.ts`, and a new `<option>` in both venue forms' type `<select>`.
+- No changes needed to `src/app/venues/actions.ts`, `src/components/SessionsView.tsx`, or `src/components/SessionSummary.tsx` — all three gate cost/minPlayers display strictly on `type === "RENTED_GYM"`, so the new value automatically falls into the existing free/no-cost path.
+- No demo venue seeded — venues are addable by any player via `/venues/new`, matching this app's existing trust model.
+- Went through `/plan` per `CLAUDE.md`'s schema-file rule, even though the change itself is small.
 
 ## Notes
 
 <!-- Any extra notes -->
 
-Guide-to-tap (spotlight + instruct) was chosen over auto-opening `EditDrawer` programmatically: the tap itself is the muscle-memory a player needs every week, and `EditDrawer` is already a fully controlled/presentational component, so guide-to-tap needs zero changes to it — the tour just listens for the real `onSave`/toggle-click to fire its own advance events.
+Hit the same recurring gotcha noted elsewhere in this file's history: `npx prisma migrate dev` applied the migration but didn't regenerate `src/generated/prisma` with the new enum value in time for the already-running dev server to pick it up, causing a real "Invalid venue type" 500 on first submit. Fixed with an explicit `npx prisma generate` + dev server restart, then re-verified clean.
 
-Visual design reuses only existing `@theme` tokens (`bg-surface`, `border-border-strong`, `ring-accent`, etc.); the one exception is `getBoundingClientRect()`-derived `top/left/width/height` via inline `style`, justified the same way `EditDrawer`'s existing raw `bg-black/60` backdrop already deviates from the token system for the same reason (computed pixel values can't be static Tailwind classes).
+## History
 
-Accepted, documented limitation: browser back/forward mid-tour does not resume an interrupted tour (`tourStep` is in-memory only, not persisted) — a returning-with-valid-identity remount never re-triggers `NamePicker`, so there is no resume hook. Not worth persisting partial step state for a one-time, low-stakes flow.
-
-Touches `src/components/TeamGrid.tsx` and `src/components/AvailabilityGrid.tsx` (existing files) plus 4 new files — went through a `/plan` pass per `CLAUDE.md`'s >3-files rule (plan approved, see the plan file linked above).
-
-The `sessions` step's target (Game Day + Sessions) lives outside `AvailabilityGrid.tsx`, so `TeamGrid.tsx` owns a second, independent `OnboardingTour` mount + its own tiny ref/measurement effect for that one step, rather than relocating all tour ownership up to `TeamGrid`. The one cross-component concern this introduces — a curious tap on an unrelated grid cell during the `sessions` step opening a real `EditDrawer` alongside `TeamGrid`'s own tour tooltip — is handled by a new `onDrawerOpenChange` callback prop on `AvailabilityGrid` (fired from its existing `openDrawer`/`closeDrawer`), letting `TeamGrid` hide its tour while the drawer is open, mirroring `AvailabilityGrid`'s own `!activeEdit` guard for its four steps.
+- 2026-07-22: Implemented on `feature/venue-type-recreation-center`, planned via `/plan` per `CLAUDE.md`'s schema-file rule (small change, but touches `prisma/schema.prisma`). User confirmed via `AskUserQuestion` that a Recreation Center is free/public, not paid/booked — same cost-gating as `OPEN_GYM`/`PARK`. Added `RECREATION_CENTER` to the `VenueType` enum (migration `20260722133606_add_recreation_center_venue_type`, a plain non-destructive `ALTER TYPE ... ADD VALUE`), added it to `VenueType`/`VENUE_TYPE_LABELS` in `src/types/api.ts`, and added the option to both venue forms' type `<select>` (`src/app/venues/new/page.tsx`, `src/app/venues/[venueId]/edit/page.tsx`). No changes needed to `actions.ts`/`SessionsView.tsx`/`SessionSummary.tsx` — all three gate cost/minPlayers strictly on `type === "RENTED_GYM"`, so the new value fell into the existing free path automatically, confirmed live (a $50 cost entered on a Recreation Center venue was correctly dropped, and the venue list shows no "Cost:" line for it, matching Open Gym/Park). `npm run lint`, `npx vitest run` (197/197), and `npm run build` all pass. Verified end-to-end via Playwright: created a real "Test Rec Center" venue, confirmed the edit form pre-selects it correctly, deleted it afterward to clean up. Docs (`practiceRuns-ProjectOverview.md`, `practiceRuns-ProjectPlan.html`) updated to add the new enum value to their reproduced schema blocks; `practiceRuns-Architecture.md`'s ERD doesn't enumerate `VenueType`'s values so needed no change. No demo venue seeded. Status set to Completed — ready for commit per `ai-interaction.md` workflow.
 
 ## History
 

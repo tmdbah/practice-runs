@@ -57,6 +57,7 @@ export default async function NewVenuePage({
                 <option value="RENTED_GYM">Rented Gym</option>
                 <option value="OPEN_GYM">Open Gym</option>
                 <option value="PARK">Park</option>
+                <option value="RECREATION_CENTER">Recreation Center</option>
               </select>
             </div>
 

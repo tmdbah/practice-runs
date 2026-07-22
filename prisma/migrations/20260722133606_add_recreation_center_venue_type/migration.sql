@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "VenueType" ADD VALUE 'RECREATION_CENTER';

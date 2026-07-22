@@ -47,12 +47,17 @@ export interface ApiError {
 
 // ─── Phase 3: Sessions & Venues ──────────────────────────────────────────────
 
-export type VenueType = "RENTED_GYM" | "OPEN_GYM" | "PARK";
+export type VenueType =
+  | "RENTED_GYM"
+  | "OPEN_GYM"
+  | "PARK"
+  | "RECREATION_CENTER";
 
 export const VENUE_TYPE_LABELS: Record<VenueType, string> = {
   RENTED_GYM: "Rented Gym",
   OPEN_GYM: "Open Gym",
   PARK: "Park",
+  RECREATION_CENTER: "Recreation Center",
 };
 
 export type SessionStatus = "PROPOSED" | "CONFIRMED" | "CANCELLED";
