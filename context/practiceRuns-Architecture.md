@@ -4,7 +4,7 @@
 >
 > Scope: covers the full planned system through Phase 5, including subsystems not yet built. Anything not yet implemented is marked **`[Planned]`**.
 >
-> Status: Phases 1–3 shipped (core availability grid, This Week overrides/team window, Sessions & Venues). Phase 4 not started. Update this file when an architecture decision changes — don't let it drift from what's actually built.
+> Status: Phases 1–3 shipped (core availability grid, This Week overrides/team window, Sessions & Venues). Phase 4 underway — the first-visit onboarding tour has shipped. Update this file when an architecture decision changes — don't let it drift from what's actually built.
 
 ---
 
@@ -135,6 +135,8 @@ erDiagram
         VenueType type
         string address
         int costPerHour
+        string openTime "nullable, informational only"
+        string closeTime "nullable, informational only"
     }
     Session {
         string id PK
@@ -320,6 +322,9 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Cancelling a session flips `status` in place (soft state, RSVPs untouched) rather than deleting it | Delete the session and let the proposer create a new one from scratch | `DELETE` already exists for "this was a mistake, remove it entirely" — cancellation is a different case ("this was real, then fell through") where the RSVP history has ongoing value. Reusing the venue/cost/minPlayers from a cancelled session to pre-fill a new proposal (`startAlternate`) also depends on the cancelled row still existing |
 | Game Day as a `Session.kind` (`PRACTICE`/`GAME`) discriminator, not a parallel `Game` model | A separate `Game`/`GameRsvp` model with its own routes, `sessionInclude`-equivalent, and propose form | Games and practice sessions share the entire venue/date/time/RSVP shape; only display-layer wording/gating (cost hidden, headcount urgency) differs by `kind`. Mirrors the `SessionStatus` precedent directly above — one new enum column, zero new tables, zero duplicated route/lib code |
 | `Session.kind` set at creation only, excluded from `EditSessionBody` so `PATCH` can never change it | Allow editing `kind` like any other field | A mis-proposed kind is fixed by delete + re-propose (already one click with inline confirm) rather than adding a mutable classification that would need to be reconciled against kind-specific UI state (open form section, default-fill behavior) mid-edit |
+| Onboarding tour as a scripted first-session state (spotlight + instruct, "guide-to-tap"), not an auto-opened `EditDrawer` and not a coach-marks library | Programmatically open `EditDrawer` for the player, or adopt react-joyride/driver.js | `EditDrawer` is already a fully controlled/presentational component, so guide-to-tap needs zero changes to it — the tour just listens for the real `onSave`/toggle-click. Auto-opening would need a first-of-its-kind imperative "force open" entry point into `AvailabilityGrid`'s private `activeEdit` state, plus edge cases (dismissing an auto-opened drawer without acting). A third-party library would also need re-skinning to match the app's theme and adds a dependency for a small, one-time, 5-step flow |
+| Onboarding tour's `sessions` step (Game Day + Sessions) owned by `TeamGrid.tsx` via a second, independent `OnboardingTour` mount, rather than relocating all tour ownership up from `AvailabilityGrid.tsx` | Move all tour step state/measurement/rendering up to `TeamGrid` so one component owns the whole sequence | The Game Day/Sessions section renders outside `AvailabilityGrid.tsx`, so *something* has to own that one step elsewhere — moving everything up is a much larger change for the same result. `AvailabilityGrid` keeps its existing four steps and gains only a new `onDrawerOpenChange` callback (fired from its existing `openDrawer`/`closeDrawer`) so `TeamGrid` can hide its own tour tooltip while the real edit drawer is open, mirroring `AvailabilityGrid`'s existing `!activeEdit` guard one level up |
+| Tour step state (`tourStep`) owned by `TeamGrid`, target-rect measurement owned by `AvailabilityGrid`, `OnboardingTour` itself fully presentational | A single component owning both sequencing and DOM measurement | Mirrors the existing `TeamGrid`-owns-identity / `AvailabilityGrid`-owns-grid-internals split already in place; `AvailabilityGrid` is the only component holding real refs to the cell/toggle/Team-Window-card, so it's the natural place to compute `getBoundingClientRect()`-based target rects, re-measured via the same `useLayoutEffect` + resize-listener pattern already established by `TeamWindowCard`'s carousel fix |
 
 ---
 
@@ -383,8 +388,9 @@ gantt
     DateOverride + read-time effective/window calc :done, p2, 1, 2
     section Phase 3
     Venue/Session/Rsvp bounded context added :done, p3, 2, 3
-    section Phase 4 [Planned]
-    Demo team isolation + Cron reset job :p4, 3, 4
+    section Phase 4
+    Onboarding tour (client-only, no schema change) :done, p4a, 3, 3.5
+    Demo team isolation + Cron reset job :p4, 3.5, 4
     section Phase 5 [Planned, gated]
     NextAuth session layer in front of existing write paths :p5, 4, 5
 ```

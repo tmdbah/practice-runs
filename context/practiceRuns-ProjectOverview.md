@@ -1,7 +1,7 @@
 # Practice Runs — Project Overview
 
 > **Tagline:** See at a glance which day the crew has the most overlap — and lock in a run in a couple of taps.
-> **Status:** Phases 1–3 (core availability grid, This Week overrides/team window, Sessions & venues) shipped. Phase 4 (polish) not started.
+> **Status:** Phases 1–3 (core availability grid, This Week overrides/team window, Sessions & venues) shipped. Phase 4 (polish) underway — the first-visit onboarding tour has shipped.
 > **Version:** V1 — MVP (recurring availability grid) + Sessions & Venues
 
 This is the enriched source of truth for **Practice Runs**, superseding `practiceRuns-ProjectSpec.md` (discarded). Keep this file and [`practiceRuns-ProjectPlan.html`](practiceRuns-ProjectPlan.html) in lockstep as phases complete or decisions change.
@@ -53,7 +53,7 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 
 ### V4 — Polish (Phase 4)
 
-- **First-visit onboarding walkthrough** — a short, dismissible tour that guides a brand-new player through the core loop (pick your name → tap a cell → This Week/Usual toggle → team window readout) so they know what to do without asking in the group chat. Persisted via a `hasSeenTour` flag in `localStorage`, same mechanism as identity — no DB table, no accounts. Dismissed once, never shown again on that device. See Decisions log and Open Questions for approach.
+- **First-visit onboarding tour (shipped)** — a scripted, guide-to-tap tour (not a coach-marks library) that walks a brand-new player through the core loop, in causal order, by having them actually do it: spotlight their own Monday cell (grid forced into Usual mode) → they tap it, the real edit drawer opens, they save → spotlight the This Week toggle → they tap it → spotlight the *same* Monday cell, now shown faded/inherited, explaining the inherited-vs-overridden visual language and "Reset to Usual" → spotlight the Team Window card (copy references the actual gold-highlight/swipe UI) → spotlight the Game Day + Sessions section, explaining one-off practices/games and RSVP. A "Step X of 5" indicator and "Skip tour" appear at every step. Persisted via a `hasSeenTour` flag in `localStorage`, same mechanism as identity — no DB table, no accounts. Dismissed once (skip or the final "Got it"), never shown again on that device. See Decisions log.
 - First-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction
 - Demo team + daily reset job + demo banner (portfolio safety, see Decisions log)
 
@@ -156,6 +156,8 @@ model Venue {
   address        String?
   bookingUrl     String?
   costPerHour    Int?        // cents — hourly rate, RENTED_GYM only
+  openTime       String?     // "HH:MM" — informational hours-of-operation, not validated against Session times
+  closeTime      String?     // "HH:MM"
   sessions       Session[]
 }
 
@@ -235,7 +237,7 @@ model Rsvp {
 | Screen | Purpose |
 |---|---|
 | First visit — name picker | Pick your name from the roster once; remembered on this device |
-| Onboarding walkthrough (Phase 4) | Short, dismissible tour shown once on first visit after the name picker — spotlights the grid, a cell tap, the This Week/Usual toggle, and the team window readout. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
+| Onboarding tour (Phase 4, shipped) | Scripted, guide-to-tap tour shown once, right after a brand-new player's first name pick, five steps in causal order: Usual Schedule (spotlight + real tap/save on their own Monday cell) → This Week toggle (real tap) → inherited-vs-overridden explanation (same Monday cell, now faded) → Team Window card → Games & practices (Game Day + Sessions). "Step X of 5" + "Skip tour" at every step. Dismiss = `hasSeenTour` in `localStorage`, never shown again on that device |
 | Home — grid view | This Week / Usual toggle, 7-day grid, tap a cell to edit, live Team Window carousel card (defaults to best-availability day; arrows + swipe + dot indicators page through the rest) |
 | Edit drawer (bottom sheet) | Anytime / Specific hours / Unavailable, optional time range + note, Save. This Week mode only, and only when the cell is already overridden: a "Reset to Usual" button clears the `DateOverride` and reverts the day to inheriting `DayDefault` |
 | Sessions list (Phase 3, shipped) | Renders below the grid on the same `/team/[slug]` page — no separate route. "+ Propose" opens an inline form (venue select, date, from/to time, and for `RENTED_GYM` venues, total cost + min players). Each session card shows In/Out RSVP buttons, the RSVP'd list, and for `RENTED_GYM` sessions the live cost-split + headcount block. The proposer sees additional Edit (reopens the same form pre-filled) and Delete (inline "Delete this session?" confirm, no modal) actions |
@@ -301,7 +303,10 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Auth | Deferred | Not built until there's a concrete trigger: opening this beyond TJ's trust circle. Auth alone wouldn't even fix portfolio exposure — see Portfolio row |
 | Portfolio | Separate demo team (`/team/demo`), not a login wall | Seeded fake data, reset daily; the real team's URL is simply never posted publicly |
 | Min players | Open question — kept as an editable per-session field | Team needs to agree on the real headcount threshold (8? 10?); varies by venue cost |
-| Onboarding | First-visit walkthrough, dismissible, `localStorage`-persisted (`hasSeenTour`) | Mirrors the identity mechanism — no accounts, no DB table; new players shouldn't need to ask the group chat what to do |
+| Onboarding | First-visit tour, dismissible, `localStorage`-persisted (`hasSeenTour`, key `practice-runs:tour:${slug}`, mirroring `use-identity.ts`'s pattern exactly) | Mirrors the identity mechanism — no accounts, no DB table; new players shouldn't need to ask the group chat what to do |
+| Onboarding tour approach | Scripted, guide-to-tap first-session state (spotlight the real UI, have the player perform the real action) over a coach-marks library (react-joyride/driver.js) | The player's own row starts all-`UNAVAILABLE`, so having them actually tap/save their own Monday cell during the tour doubles as their first real data entry, not just a passive lesson. Also avoids a new dependency and the CSS-theming work of re-skinning a third-party library's default look to match the app's dark/amber/teal theme |
+| Onboarding tour sequence | Usual Schedule → This Week toggle → inherited-vs-overridden explanation → Team Window → Sessions/Game Day, in that causal order | An earlier build had the player create a This Week override first without ever explaining what Usual Schedule or This Week even meant, and never mentioned Sessions/Game Day at all — reordered after trying it so each step only depends on what the player already learned, and added a fifth step so the tour actually covers the app's second major feature area |
+| Onboarding tour depth for Sessions/Game Day | One combined, non-interactive info step (not a guided tap, not two separate steps, not skipped) | There's no personal data to enter for these (unlike the grid steps), so a forced tap would be hollow; but leaving them out entirely would mean a new player never learns they exist. One step mentioning both by name is the middle ground |
 | Team Window display | Single swipeable card (always-visible arrows + native touch swipe + tappable dot indicators), defaults to the best-availability day | Phase 2 shipped it as a row of tiny per-day boxes in the grid table; unreadable at mobile widths (the primary use case) and not interactive. A static single-best-day card (closer to the original mockup) was considered but rejected — it would hide the other 6 days' data the app already computes for free. Calculation (`computeWindowForDate`) is unchanged; this is a display-only change. See `feature-team-window-carousel-spec.md` |
 | Reset to Usual | `DELETE /override` clears a `DateOverride` row; edit drawer shows a "Reset to Usual" button only when the open cell is already overridden (This Week mode only) | Once a player has explicitly overridden a day, there was no way back to "just inherit Usual" short of manually re-entering Usual's exact values — error-prone and easy to get subtly wrong (times off by a few minutes, wrong status). Deleting the override row is the correct semantic "undo," matching the existing invariant that a missing `DateOverride` means "use the default" |
 | Grid markup | Availability grid re-implemented with CSS Grid + explicit ARIA roles (`div[role=table/row/columnheader/rowheader/cell]`) instead of a semantic HTML `<table>` | Same screen-reader semantics as a real `<table>`, but CSS Grid gives the per-breakpoint column sizing (`lg:` widening at the iPad Mini breakpoint) that `table-fixed` couldn't do cleanly. Prompted by testing the grid with the demo roster expanded to a realistic ~15 rows |
@@ -346,7 +351,7 @@ Surfaced from group chat transcripts (2026-07-17): the recurring weekly grid ans
 1. **Core grid, Usual Schedule only** — Next.js scaffold, Prisma schema + Neon connection, `/team/[slug]` renders the grid, tap-to-edit works for Usual Schedule. No overrides, no team window math yet.
 2. **This Week overrides + team window** — This Week / Usual toggle, `DateOverride` writes, inherited-vs-overridden styling, live overlap calculation.
 3. **Sessions & venues — done** — Propose, edit, and delete a one-off session; RSVP in/out; live cost split + minimum-headcount check for rented-gym sessions. INSZN seeded as the first venue; `/venues/new` adds more, open to any player.
-4. **Polish** — First-visit identity persistence, **first-visit onboarding walkthrough** (dismissible tour of grid/toggle/team-window, gated on `hasSeenTour` in `localStorage`), add-player flow, empty/error states, pull-to-refresh interaction, demo team + daily reset job + demo banner.
+4. **Polish (in progress)** — **First-visit onboarding tour — done**: scripted guide-to-tap tour, five steps (Usual Schedule → This Week toggle → inherited-vs-overridden → Team Window → Games & practices), gated on `hasSeenTour` in `localStorage`. Remaining: first-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction, demo team + daily reset job + demo banner.
 5. **Auth (gated, not scheduled)** — Google/email via NextAuth + per-team permissions. Triggered only by opening this up beyond TJ's direct trust circle.
 
 ---
@@ -382,7 +387,7 @@ If the concept proves out through real use, a plausible next step is a small mul
 ```
 Project: Practice Runs
 Stack: Next.js (App Router, latest stable), TypeScript, Tailwind CSS v4, Prisma + Neon
-Current phase: Phase 4 — polish (onboarding tour, add-player flow, empty/error states, demo team). Phases 1–3 shipped.
+Current phase: Phase 4 — polish (onboarding tour shipped; add-player flow, empty/error states, demo team remaining). Phases 1–3 shipped.
 
 Rules:
 - Read practiceRuns-ProjectOverview.md before writing any code
@@ -397,7 +402,7 @@ Rules:
 
 - [ ] Real minimum-headcount threshold for booking a rented gym (8? 10?) — needs an actual team conversation. `Session.minPlayers` stays editable per session either way
 - [ ] Full authoritative roster — pull directly from the group, don't reconstruct from scattered chat messages
-- [ ] Onboarding tour implementation — coach-marks library (e.g. `driver.js`, `react-joyride`) spotlighting real UI vs. a scripted first-session state (auto-opening the edit drawer, pre-highlighting a cell) that has the player perform the real action instead of watching a fake demo; decide now that Phase 4 is starting
+- [x] ~~Onboarding tour implementation~~ — resolved: scripted, guide-to-tap first-session state (spotlight the real cell/toggle/team-window/Sessions, player performs the real action where there's real data to enter) rather than a coach-marks library. Shipped as a five-step sequence — see the Decisions log
 - [ ] Whether session Edit/Delete need a real server-side proposer check before this goes beyond the trust circle — currently UI-only, consistent with the rest of V1's trust model, but worth revisiting alongside the Phase 5 auth trigger
 
 ---

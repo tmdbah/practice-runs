@@ -14,6 +14,9 @@ interface Props {
   onToggleForm: () => void;
   formSlot: React.ReactNode;
   extraHeaderAction?: React.ReactNode;
+  /** Onboarding-tour targets: the header row, and whichever renders first below it (empty-state text or the first list item). */
+  headerRef?: React.Ref<HTMLDivElement>;
+  firstRowRef?: React.Ref<HTMLElement>;
 
   rsvpErrors: Record<string, string>;
   deletingId: string | null;
@@ -54,6 +57,8 @@ export function SessionsSection({
   onToggleForm,
   formSlot,
   extraHeaderAction,
+  headerRef,
+  firstRowRef,
   rsvpErrors,
   deletingId,
   confirmDeleteId,
@@ -73,7 +78,7 @@ export function SessionsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" ref={headerRef}>
         <h2 className="text-lg font-bold text-white">{title}</h2>
         <div className="flex gap-2">
           <button
@@ -89,14 +94,14 @@ export function SessionsSection({
       {formSlot}
 
       {sessions.length === 0 ? (
-        <p className="text-gray-400 text-sm">
+        <p className="text-gray-400 text-sm" ref={firstRowRef as React.Ref<HTMLParagraphElement>}>
           {kind === "GAME"
             ? "No games proposed yet."
             : "No sessions proposed yet."}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {sessions.map((session) => {
+          {sessions.map((session, index) => {
             const myRsvp = currentPlayerId
               ? session.rsvps.find((r) => r.playerId === currentPlayerId)
               : null;
@@ -109,6 +114,7 @@ export function SessionsSection({
             return (
               <li
                 key={session.id}
+                ref={index === 0 ? (firstRowRef as React.Ref<HTMLLIElement>) : undefined}
                 className={`rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-2 ${
                   isCancelled ? "opacity-60" : ""
                 }`}

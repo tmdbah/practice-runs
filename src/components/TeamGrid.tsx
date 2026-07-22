@@ -1,12 +1,15 @@
 "use client";
 
 import type { JSX } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useIdentity } from "@/hooks/use-identity";
+import { useTourSeen } from "@/hooks/use-tour";
 import { NamePicker } from "@/components/NamePicker";
 import { AvailabilityGrid } from "@/components/AvailabilityGrid";
 import { SessionsView } from "@/components/SessionsView";
+import { OnboardingTour } from "@/components/OnboardingTour";
+import { advanceTour, type TourEvent, type TourStep } from "@/lib/tour-steps";
 import type {
   TeamGridResponse,
   SessionResponse,
@@ -25,7 +28,62 @@ export function TeamGrid({
   venues,
 }: TeamGridProps): JSX.Element {
   const { playerId, setPlayerId, isLoaded } = useIdentity(data.team.slug);
+  const { hasSeenTour, markTourSeen } = useTourSeen(data.team.slug);
   const [sessions, setSessions] = useState<SessionResponse[]>(initialSessions);
+  const [tourStep, setTourStep] = useState<TourStep | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  // Onboarding-tour target for the "sessions" step: both sections' headers
+  // + first row (empty-state text or first card) — a small, bounded target
+  // regardless of how many sessions/games exist, unlike the full Game Day +
+  // Sessions wrapper this used to spotlight (which could be taller than the
+  // viewport and broke the tooltip-placement math). Covers Game Day AND
+  // Sessions, not just Game Day, so the spotlight/copy match each other.
+  const gameHeaderRef = useRef<HTMLDivElement>(null);
+  const gameFirstRowRef = useRef<HTMLElement>(null);
+  const sessionsHeaderRef = useRef<HTMLDivElement>(null);
+  const sessionsFirstRowRef = useRef<HTMLElement>(null);
+  const [sessionsTargetRect, setSessionsTargetRect] = useState<DOMRect | null>(
+    null,
+  );
+
+  useLayoutEffect(() => {
+    function measure(): void {
+      if (tourStep !== "sessions" || !gameHeaderRef.current) {
+        setSessionsTargetRect(null);
+        return;
+      }
+      const rects = [
+        gameHeaderRef.current.getBoundingClientRect(),
+        gameFirstRowRef.current?.getBoundingClientRect(),
+        sessionsHeaderRef.current?.getBoundingClientRect(),
+        sessionsFirstRowRef.current?.getBoundingClientRect(),
+      ].filter((r): r is DOMRect => r != null);
+      const top = Math.min(...rects.map((r) => r.top));
+      const left = Math.min(...rects.map((r) => r.left));
+      const right = Math.max(...rects.map((r) => r.right));
+      const bottom = Math.max(...rects.map((r) => r.bottom));
+      setSessionsTargetRect(new DOMRect(left, top, right - left, bottom - top));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [tourStep]);
+
+  // Bring the Game Day section into view once when this step starts — it's
+  // often below the fold, and the spotlight shouldn't point at something
+  // the player hasn't scrolled to yet.
+  useEffect(() => {
+    if (tourStep === "sessions") {
+      gameHeaderRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [tourStep]);
 
   // Validate stored identity against current roster — clear it if stale
   const isValidPlayer =
@@ -43,8 +101,26 @@ export function TeamGrid({
     return <div className="min-h-screen bg-bg" />;
   }
 
+  // NamePicker only ever renders when there's no valid stored identity, so
+  // any call into onSelect is by construction a brand-new device picking a
+  // name for the first time — the one moment to arm the tour.
+  function handleNameSelected(id: string): void {
+    setPlayerId(id);
+    if (!hasSeenTour) setTourStep("usual");
+  }
+
+  function handleTourAdvance(event: TourEvent): void {
+    const next = advanceTour(tourStep ?? "usual", event);
+    if (next === "complete") {
+      markTourSeen();
+      setTourStep(null);
+    } else {
+      setTourStep(next);
+    }
+  }
+
   if (!playerId || !isValidPlayer) {
-    return <NamePicker players={data.players} onSelect={setPlayerId} />;
+    return <NamePicker players={data.players} onSelect={handleNameSelected} />;
   }
 
   const currentPlayer = data.players.find((p) => p.id === playerId);
@@ -85,6 +161,9 @@ export function TeamGrid({
           data={data}
           currentPlayerId={playerId}
           sessions={sessions}
+          tourStep={tourStep}
+          onTourAdvance={handleTourAdvance}
+          onDrawerOpenChange={setIsDrawerOpen}
         />
         <div className="px-1 pb-8 mt-6">
           <SessionsView
@@ -92,9 +171,22 @@ export function TeamGrid({
             sessions={sessions}
             setSessions={setSessions}
             venues={venues}
+            gameHeaderRef={gameHeaderRef}
+            gameFirstRowRef={gameFirstRowRef}
+            sessionsHeaderRef={sessionsHeaderRef}
+            sessionsFirstRowRef={sessionsFirstRowRef}
           />
         </div>
       </div>
+
+      {tourStep === "sessions" && !isDrawerOpen && (
+        <OnboardingTour
+          step={tourStep}
+          targetRect={sessionsTargetRect}
+          onSkip={() => handleTourAdvance({ type: "skip" })}
+          onAcknowledge={() => handleTourAdvance({ type: "acknowledge" })}
+        />
+      )}
     </div>
   );
 }

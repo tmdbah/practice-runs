@@ -14,6 +14,12 @@ interface Props {
   sessions: SessionResponse[];
   setSessions: Dispatch<SetStateAction<SessionResponse[]>>;
   venues: VenueSummary[];
+  /** Onboarding-tour targets for the Game Day section's header + first row. */
+  gameHeaderRef?: React.Ref<HTMLDivElement>;
+  gameFirstRowRef?: React.Ref<HTMLElement>;
+  /** Onboarding-tour targets for the Sessions section's header + first row. */
+  sessionsHeaderRef?: React.Ref<HTMLDivElement>;
+  sessionsFirstRowRef?: React.Ref<HTMLElement>;
 }
 
 /** Estimates a session's total cost from a venue's hourly rate and the chosen time range. Returns null if the range isn't computable (missing/invalid times). */
@@ -47,6 +53,10 @@ export function SessionsView({
   sessions,
   setSessions,
   venues,
+  gameHeaderRef,
+  gameFirstRowRef,
+  sessionsHeaderRef,
+  sessionsFirstRowRef,
 }: Props): React.ReactElement {
   const { playerId: currentPlayerId } = useIdentity(slug);
   const [showForm, setShowForm] = useState(false);
@@ -482,6 +492,8 @@ export function SessionsView({
         isFormOpenHere={showForm && formKind === "GAME"}
         onToggleForm={() => handleProposeClick("GAME")}
         formSlot={showForm && formKind === "GAME" ? proposeForm : null}
+        headerRef={gameHeaderRef}
+        firstRowRef={gameFirstRowRef}
         {...sharedSectionProps}
       />
       <SessionsSection
@@ -492,6 +504,8 @@ export function SessionsView({
         isFormOpenHere={showForm && formKind === "PRACTICE"}
         onToggleForm={() => handleProposeClick("PRACTICE")}
         formSlot={showForm && formKind === "PRACTICE" ? proposeForm : null}
+        headerRef={sessionsHeaderRef}
+        firstRowRef={sessionsFirstRowRef}
         extraHeaderAction={
           <Link
             href={`/venues?from=${encodeURIComponent(slug)}`}
