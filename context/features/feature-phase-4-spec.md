@@ -4,6 +4,8 @@
 
 Phase 4 per `practiceRuns-ProjectOverview.md` → Build Phases: **"Polish."** First-visit identity persistence hardening, add-player flow, empty/error states, pull-to-refresh interaction, and the demo team + daily reset job + demo banner for portfolio use.
 
+**Done, not tracked as a numbered requirement below:** the first-visit onboarding tour shipped on `feature/onboarding-tour` (see `context/current-feature.md` history) — a five-step scripted guide-to-tap walkthrough (Usual Schedule → This Week toggle → inherited-vs-overridden → Team Window → Games & practices), gated on `hasSeenTour` in `localStorage`. It predates this spec file being updated to include it; requirements 1–4 below are what's still open.
+
 **Prerequisite:** `feature-phase-3-spec.md` fully merged — the real product loop (grid + sessions) already works end to end.
 
 **Phase 4 is done when:** the app is safe to link publicly as a portfolio piece (`/team/demo` only), and the real team's day-to-day rough edges (adding a player, empty states, stale data) are gone.

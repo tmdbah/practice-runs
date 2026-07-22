@@ -73,7 +73,7 @@ prisma/
 npm run dev      # Start dev server
 npm run build    # Production build
 npm run lint     # Run ESLint
-# npm test      # Run tests (uncomment if used)
+npm test         # Run tests (vitest)
 ```
 
 ---
@@ -117,7 +117,7 @@ npm run lint     # Run ESLint
 
 **V1 scope (Phases 1–2):** Core availability grid — Usual Schedule tap-to-edit, then This Week overrides plus the live team-window overlap calculation. Complete.
 **Phase 1 — done:** Usual Schedule grid, tap-to-edit, identity picker, read/write APIs, shipped and merged to `main`.
-**Phase 2 — done:** This Week overrides + team window — `DateOverride` writes, inherited-vs-overridden styling, live per-day overlap calculation, shipped and merged to `main`. The Team Window UI was subsequently reworked from a per-day grid row into a swipeable single-card carousel — see `context/features/feature-team-window-carousel-spec.md`; the calculation itself is unchanged. Also since added: a `DELETE .../override` endpoint + "Reset to Usual" button (clears an override back to inheriting Usual), and the grid was rebuilt on CSS Grid + ARIA roles instead of `<table>` for accessibility and responsive column sizing — see `context/current-feature.md` history for both.
+**Phase 2 — done:** This Week overrides + team window — `DateOverride` writes, inherited-vs-overridden styling, live per-day overlap calculation, shipped and merged to `main`. The Team Window UI was subsequently reworked from a per-day grid row into a swipeable single-card carousel — see `context/features/completed/feature-team-window-carousel-spec.md`; the calculation itself is unchanged. Also since added: a `DELETE .../override` endpoint + "Reset to Usual" button (clears an override back to inheriting Usual), and the grid was rebuilt on CSS Grid + ARIA roles instead of `<table>` for accessibility and responsive column sizing — see `context/current-feature.md` history for both.
 **Done (V1 as a whole):** the grid beats the spreadsheet on friction, and This Week/Usual overrides plus per-day available-count and team window are all live.
 **Phase 3 — done:** Sessions & venues — `Venue`/`Session`/`Rsvp` models + `VenueType` enum, INSZN seeded as the first venue, admin venue form, session propose/edit/delete, optimistic RSVP (in/out), and live cost-split + minimum-headcount display for `RENTED_GYM` sessions. Shipped and merged to `main`; see `context/current-feature.md` history for the full build/fix trail.
 **Phase 4 — in progress:** Polish. **Onboarding tour — done:** a scripted, guide-to-tap first-visit walkthrough (not a coach-marks library) shown once, right after a brand-new player's first name pick, five steps in causal order — Usual Schedule (spotlight + real tap/save on their own Monday cell, forced into Usual mode) → This Week toggle (real tap) → inherited-vs-overridden explanation (same Monday cell, now shown faded, explain-only) → Team Window card → Games & practices (Game Day + Sessions, one combined info step) — with a "Step X of 5" indicator and a "Skip tour" escape hatch at every step. Persisted via `hasSeenTour` in `localStorage` (`use-tour.ts`, mirroring `use-identity.ts`), zero backend/schema changes. Remaining Phase 4 items — add-player flow, empty/error states, pull-to-refresh, demo team + daily reset job + demo banner — not started.
