@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { GridCell } from "@/components/GridCell";
 import { EditDrawer } from "@/components/EditDrawer";
 import { TeamWindowCard, type DayWindowEntry } from "@/components/TeamWindowCard";
+import { OnboardingTour } from "@/components/OnboardingTour";
+import type { TourStep, TourEvent } from "@/lib/tour-steps";
 import type {
   TeamGridResponse,
   PlayerRow,
@@ -14,6 +16,9 @@ import type {
   Status,
   SessionResponse,
 } from "@/types/api";
+
+/** The one cell the tour spotlights for the current player: Monday. */
+const TOUR_CELL_DAY = 1;
 
 // Mon–Sun display order (ISO-style): 1,2,3,4,5,6,0
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -84,6 +89,12 @@ interface AvailabilityGridProps {
   data: TeamGridResponse;
   currentPlayerId: string;
   sessions: SessionResponse[];
+  /** Active onboarding-tour step, or null/undefined when no tour is running. */
+  tourStep?: TourStep | null;
+  /** Reports a real user action so the tour can advance. */
+  onTourAdvance?: (event: TourEvent) => void;
+  /** Reports whether the real edit drawer is open, so a tour step spotlighting something outside this component can hide itself while it's up. */
+  onDrawerOpenChange?: (isOpen: boolean) => void;
 }
 
 interface DraftEdit {
@@ -96,8 +107,41 @@ export function AvailabilityGrid({
   data,
   currentPlayerId,
   sessions,
+  tourStep = null,
+  onTourAdvance,
+  onDrawerOpenChange,
 }: AvailabilityGridProps): JSX.Element {
-  const [mode, setMode] = useState<GridMode>("this-week");
+  // The tour's first step ("usual") needs the grid to open in Usual mode;
+  // everyone else (including returning players, where tourStep is always
+  // null) keeps the existing This Week default. Safe as a lazy initializer
+  // because TeamGrid sets tourStep to "usual" in the same handler as
+  // setPlayerId, so it's already correct on this component's first mount.
+  const [mode, setMode] = useState<GridMode>(() =>
+    tourStep === "usual" ? "usual" : "this-week",
+  );
+
+  const cellRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLDivElement>(null);
+  const teamWindowRef = useRef<HTMLDivElement>(null);
+  const [tourTargetRect, setTourTargetRect] = useState<DOMRect | null>(null);
+
+  // Measure whichever element the current tour step spotlights.
+  useLayoutEffect(() => {
+    function measure(): void {
+      const target =
+        tourStep === "usual" || tourStep === "overrides"
+          ? cellRef.current
+          : tourStep === "toggle"
+            ? toggleRef.current
+            : tourStep === "team-window"
+              ? teamWindowRef.current
+              : null;
+      setTourTargetRect(target ? target.getBoundingClientRect() : null);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [tourStep, mode]);
   const sessionsByDate = useMemo(
     () => groupSessionsByDate(sessions),
     [sessions],
@@ -178,6 +222,7 @@ export function AvailabilityGrid({
 
   function openDrawer(playerId: string, dayOfWeek: number): void {
     setCellError(null);
+    onDrawerOpenChange?.(true);
     if (mode === "usual") {
       setActiveEdit({ playerId, key: dayOfWeek });
     } else {
@@ -189,6 +234,7 @@ export function AvailabilityGrid({
 
   function closeDrawer(): void {
     setActiveEdit(null);
+    onDrawerOpenChange?.(false);
   }
 
   /**
@@ -244,6 +290,8 @@ export function AvailabilityGrid({
   async function handleSave(entry: ScheduleEntry): Promise<void> {
     if (!activeEdit) return;
     const { playerId } = activeEdit;
+
+    if (tourStep === "usual") onTourAdvance?.({ type: "cell-saved" });
 
     if (mode === "usual") {
       const dayOfWeek = activeEdit.key as number;
@@ -456,12 +504,22 @@ export function AvailabilityGrid({
   return (
     <>
       {/* Mode toggle */}
-      <div className="flex gap-1 mb-4 p-1 bg-surface rounded-xl border border-border w-full">
+      <div
+        ref={toggleRef}
+        className="flex gap-1 mb-4 p-1 bg-surface rounded-xl border border-border w-full"
+      >
         {(["this-week", "usual"] as const).map((m) => (
           <button
             key={m}
             type="button"
-            onClick={() => setMode(m)}
+            onClick={() => {
+              // During the tour's toggle step, the next step (Team Window)
+              // only exists in this-week mode — force it regardless of
+              // which button was tapped, so the tour never strands itself.
+              const isTourToggleStep = tourStep === "toggle";
+              setMode(isTourToggleStep ? "this-week" : m);
+              if (isTourToggleStep) onTourAdvance?.({ type: "toggle-tapped" });
+            }}
             className={[
               "flex-1 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors text-center",
               mode === m
@@ -474,18 +532,20 @@ export function AvailabilityGrid({
         ))}
       </div>
 
-      {mode === "this-week" && (
-        <TeamWindowCard
-          entries={DAY_ORDER.map(
-            (day, i): DayWindowEntry => ({
-              dayOfWeek: day,
-              label: DAY_LABELS_FULL[i],
-              shortLabel: DAY_LABELS_SHORT[i],
-              teamWindow: getTeamWindow(day),
-            }),
-          )}
-        />
-      )}
+      <div ref={teamWindowRef}>
+        {mode === "this-week" && (
+          <TeamWindowCard
+            entries={DAY_ORDER.map(
+              (day, i): DayWindowEntry => ({
+                dayOfWeek: day,
+                label: DAY_LABELS_FULL[i],
+                shortLabel: DAY_LABELS_SHORT[i],
+                teamWindow: getTeamWindow(day),
+              }),
+            )}
+          />
+        )}
+      </div>
 
       <div className="overflow-x-auto">
         <div
@@ -576,8 +636,15 @@ export function AvailabilityGrid({
                   const rsvpdIn = cellIsoDate
                     ? isPlayerRsvpdIn(sessionsByDate, cellIsoDate, player.id)
                     : false;
+                  const isTourCellTarget =
+                    player.id === currentPlayerId && day === TOUR_CELL_DAY;
                   return (
-                    <div role="cell" key={day} className="relative">
+                    <div
+                      role="cell"
+                      key={day}
+                      className="relative"
+                      ref={isTourCellTarget ? cellRef : undefined}
+                    >
                       <GridCell
                         entry={entry}
                         thisWeekMode={mode === "this-week"}
@@ -623,6 +690,18 @@ export function AvailabilityGrid({
           onReset={mode === "this-week" ? handleReset : undefined}
         />
       )}
+
+      {tourStep &&
+        tourStep !== "complete" &&
+        tourStep !== "sessions" &&
+        !activeEdit && (
+          <OnboardingTour
+            step={tourStep}
+            targetRect={tourTargetRect}
+            onSkip={() => onTourAdvance?.({ type: "skip" })}
+            onAcknowledge={() => onTourAdvance?.({ type: "acknowledge" })}
+          />
+        )}
     </>
   );
 }

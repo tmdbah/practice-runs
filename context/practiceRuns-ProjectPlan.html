@@ -202,7 +202,7 @@
   <a href="#lessons">Lessons from the sheet</a>
   <div class="status">
     <strong>Current phase</strong>
-    Phases 1&ndash;3 shipped. Phase 4 (polish) not started.
+    Phases 1&ndash;3 shipped. Phase 4 (polish) underway &mdash; onboarding tour shipped.
   </div>
 </nav>
 
@@ -284,8 +284,8 @@
     <div class="decision">
       <div class="tag">Onboarding</div>
       <div class="body">
-        <strong>First-visit walkthrough, dismissible, persisted the same way as identity</strong>
-        <p>A short tour shown once, right after the name picker, that spotlights the core loop &mdash; tap a cell, the This Week/Usual toggle, the team window readout &mdash; so a brand-new player doesn't have to ask the group chat what to do. Dismissal is a <code>hasSeenTour</code> flag in <code>localStorage</code>, mirroring how identity is already stored: no accounts, no DB table, no server round-trip. Scoped to Phase 4 (Polish) since it needs the real grid/toggle/team-window UI to walk through &mdash; see Build phases.</p>
+        <strong>Shipped &mdash; scripted guide-to-tap tour, dismissible, persisted the same way as identity</strong>
+        <p>A short tour shown once, right after a brand-new player's first name pick, five steps in causal order &mdash; Usual Schedule (the player's own Monday cell, they tap it, the real edit drawer opens, they save it themselves), the This Week toggle (real tap), an inherited-vs-overridden explanation (the same Monday cell, now shown faded), the Team Window readout, and Games &amp; practices (Game Day + Sessions) &mdash; so a brand-new player doesn't have to ask the group chat what to do. An earlier ordering taught mechanics out of sequence (created a This Week override before ever explaining Usual Schedule) and never mentioned Sessions/Game Day at all; reordered after trying it live so each step only depends on what came before. Resolved in favor of this scripted, guide-to-tap approach over a coach-marks library (react-joyride/driver.js): since every player's row starts all-<code>UNAVAILABLE</code>, having them actually perform the tap/save themselves doubles as their first real availability entry, not just a passive lesson &mdash; and it avoids a new dependency plus re-skinning a third-party library's default look to match this app's theme. A "Step X of 5" indicator and "Skip tour" appear at every step. Dismissal (skip or the final "Got it") writes a <code>hasSeenTour</code> flag in <code>localStorage</code>, mirroring how identity is already stored: no accounts, no DB table, no server round-trip.</p>
       </div>
     </div>
     <div class="decision">
@@ -342,8 +342,8 @@
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-node">
-      <div class="label">Onboarding tour <span class="badge amber" style="margin-left:4px;">Phase 4</span></div>
-      <div class="sub">Dismissible, shown once — spotlights cell tap, toggle, team window</div>
+      <div class="label">Onboarding tour <span class="badge teal" style="margin-left:4px;">Shipped</span></div>
+      <div class="sub">Dismissible, shown once — 5 steps: usual schedule, toggle, overrides, team window, sessions</div>
     </div>
     <div class="flow-arrow">→</div>
     <div class="flow-node">
@@ -550,6 +550,8 @@ model Venue {
   address       String?
   bookingUrl    String?
   costPerHour    Int?       // cents — hourly rate, RENTED_GYM only
+  openTime      String?     // "HH:MM" — informational hours-of-operation, not validated against Session times
+  closeTime     String?     // "HH:MM"
   sessions      Session[]
 }
 
@@ -681,7 +683,7 @@ model Rsvp {
     <div class="rail"><div class="dot">4</div><div class="stem"></div></div>
     <div class="content">
       <h3>Polish</h3>
-      <p>First-visit identity persistence, <strong>first-visit onboarding walkthrough</strong> (dismissible tour of the grid, the This Week/Usual toggle, and the team window, gated on <code>hasSeenTour</code> in <code>localStorage</code> &mdash; see Decisions log), add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
+      <p><strong>First-visit onboarding tour &mdash; shipped</strong> (scripted guide-to-tap tour, five steps &mdash; Usual Schedule, This Week toggle, inherited-vs-overridden, Team Window, Games &amp; practices &mdash; gated on <code>hasSeenTour</code> in <code>localStorage</code> &mdash; see Decisions log). Remaining: first-visit identity persistence, add-player flow, empty/error states, pull-to-refresh interaction, <strong>demo team + daily reset job + demo banner</strong> for portfolio use (see Decisions log).</p>
     </div>
   </div>
   <div class="phase-row">
