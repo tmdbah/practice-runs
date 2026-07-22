@@ -8,11 +8,13 @@ import type { PlayerRow } from "@/types/api";
 interface NamePickerProps {
   players: PlayerRow[];
   onSelect: (playerId: string) => void;
+  isDemo?: boolean;
 }
 
 export function NamePicker({
   players,
   onSelect,
+  isDemo = false,
 }: NamePickerProps): JSX.Element {
   const [selectedId, setSelectedId] = useState(players[0]?.id ?? "");
 
@@ -29,6 +31,16 @@ export function NamePicker({
         />
         <h1 className="text-xl font-bold">Uncrowned Kings</h1>
         <p className="text-text-dim text-xs mb-8">Practice Runs</p>
+
+        {isDemo && (
+          <div
+            role="status"
+            className="w-full mb-6 px-3 py-2 rounded-lg bg-gold-soft border border-border-strong text-gold text-xs text-center"
+          >
+            This is a public demo — pick any player and explore freely.
+            Sample data, not the real team.
+          </div>
+        )}
 
         <p className="text-[11px] tracking-wide uppercase text-text-mute mb-2 self-start">
           Which player are you?

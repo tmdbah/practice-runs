@@ -120,7 +120,13 @@ export function TeamGrid({
   }
 
   if (!playerId || !isValidPlayer) {
-    return <NamePicker players={data.players} onSelect={handleNameSelected} />;
+    return (
+      <NamePicker
+        players={data.players}
+        onSelect={handleNameSelected}
+        isDemo={data.team.slug === "demo-team"}
+      />
+    );
   }
 
   const currentPlayer = data.players.find((p) => p.id === playerId);
