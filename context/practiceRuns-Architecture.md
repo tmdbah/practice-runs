@@ -141,6 +141,7 @@ erDiagram
         string teamId FK
         string venueId FK
         string proposedById "nullable, gates Edit/Delete client-side"
+        SessionKind kind "PRACTICE default"
         datetime date
         int costTotal
         int minPlayers
@@ -317,6 +318,8 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Availability grid as CSS Grid + ARIA `role="grid"` pattern (`div[role=table/row/columnheader/rowheader/cell]`) | Semantic HTML `<table>` (original Phase 1/2 implementation) | `<table>`/`table-fixed` layout didn't give per-breakpoint column control; CSS Grid does, while the explicit ARIA roles preserve the same screen-reader table semantics a real `<table>` would have provided |
 | `Session.status` as an explicit `SessionStatus` enum, set only by dedicated `/confirm`/`/cancel` endpoints, never derived from RSVP count | Compute a "confirmed" state on read from `rsvps.length >= minPlayers` | Hitting `minPlayers` doesn't mean the venue is actually booked — someone still has to call and pay. A derived field would conflate "enough people said yes" with "this is definitely happening," which is exactly the ambiguity that caused the real incident this feature addresses |
 | Cancelling a session flips `status` in place (soft state, RSVPs untouched) rather than deleting it | Delete the session and let the proposer create a new one from scratch | `DELETE` already exists for "this was a mistake, remove it entirely" — cancellation is a different case ("this was real, then fell through") where the RSVP history has ongoing value. Reusing the venue/cost/minPlayers from a cancelled session to pre-fill a new proposal (`startAlternate`) also depends on the cancelled row still existing |
+| Game Day as a `Session.kind` (`PRACTICE`/`GAME`) discriminator, not a parallel `Game` model | A separate `Game`/`GameRsvp` model with its own routes, `sessionInclude`-equivalent, and propose form | Games and practice sessions share the entire venue/date/time/RSVP shape; only display-layer wording/gating (cost hidden, headcount urgency) differs by `kind`. Mirrors the `SessionStatus` precedent directly above — one new enum column, zero new tables, zero duplicated route/lib code |
+| `Session.kind` set at creation only, excluded from `EditSessionBody` so `PATCH` can never change it | Allow editing `kind` like any other field | A mis-proposed kind is fixed by delete + re-propose (already one click with inline confirm) rather than adding a mutable classification that would need to be reconciled against kind-specific UI state (open form section, default-fill behavior) mid-edit |
 
 ---
 

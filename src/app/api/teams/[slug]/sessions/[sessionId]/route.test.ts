@@ -191,14 +191,20 @@ describe("PATCH /api/teams/[slug]/sessions/[sessionId]", () => {
     );
   });
 
-  it("should never write proposedById or rsvps", async () => {
+  it("should never write proposedById, kind, or rsvps — kind is immutable via edit", async () => {
     await PATCH(
-      makeRequest({ date: "2026-07-25", fromTime: "18:00", toTime: "20:00" }),
+      makeRequest({
+        date: "2026-07-25",
+        fromTime: "18:00",
+        toTime: "20:00",
+        kind: "GAME", // even if a caller sends it, EditSessionBody has no such field
+      }),
       makeParams(),
     );
 
     const call = mockSessionUpdate.mock.calls[0]?.[0] as { data: object };
     expect(call.data).not.toHaveProperty("proposedById");
+    expect(call.data).not.toHaveProperty("kind");
     expect(call.data).not.toHaveProperty("rsvps");
   });
 

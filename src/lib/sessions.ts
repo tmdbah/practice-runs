@@ -17,6 +17,7 @@ export function toSessionResponse(
   return {
     id: session.id,
     teamId: session.teamId,
+    kind: session.kind,
     venue: session.venue
       ? {
           id: session.venue.id,

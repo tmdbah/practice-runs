@@ -1,6 +1,6 @@
 import { formatTime } from "@/lib/format-time";
 import { VENUE_TYPE_LABELS } from "@/types/api";
-import type { SessionResponse } from "@/types/api";
+import type { SessionKind, SessionResponse } from "@/types/api";
 
 interface Props {
   session: SessionResponse;
@@ -13,6 +13,40 @@ function formatCents(cents: number): string {
 function costPerPerson(costTotal: number, inCount: number): string {
   if (inCount === 0) return "—";
   return formatCents(Math.ceil(costTotal / inCount));
+}
+
+export interface HeadcountStatus {
+  text: string;
+  className: string;
+}
+
+/**
+ * Headcount status copy/color: for GAME kind, minPlayers is "avoid forfeit" (urgent
+ * red when short), for PRACTICE it's "worth booking" (neutral amber when short) —
+ * same threshold-vs-count comparison, different real-world stakes.
+ */
+export function headcountStatus(
+  kind: SessionKind,
+  minPlayers: number | null,
+  inCount: number,
+): HeadcountStatus | null {
+  if (minPlayers == null) return null;
+  if (inCount >= minPlayers) {
+    return {
+      text: kind === "GAME" ? "✓ Have enough to play" : "✓ Enough to book",
+      className: "text-green-400 text-xs font-semibold",
+    };
+  }
+  const shortfall = minPlayers - inCount;
+  return kind === "GAME"
+    ? {
+        text: `Need ${shortfall} more to avoid forfeit`,
+        className: "text-red-400 text-xs font-semibold",
+      }
+    : {
+        text: `Need ${shortfall} more`,
+        className: "text-yellow-400 text-xs",
+      };
 }
 
 /**
@@ -71,49 +105,46 @@ export function SessionCostAndRsvps({ session }: Props): React.ReactElement {
   const outRsvps = session.rsvps.filter((r) => r.status === "UNAVAILABLE");
   const isRented = session.venue?.type === "RENTED_GYM";
   const isCancelled = session.status === "CANCELLED";
+  const showHeadcount = session.minPlayers != null && !isCancelled;
+  const showCost = isRented && session.costTotal != null && !isCancelled;
+  const status = showHeadcount
+    ? headcountStatus(session.kind, session.minPlayers, inRsvps.length)
+    : null;
 
   return (
     <div className="flex flex-col gap-2">
-      {isRented && session.costTotal != null && !isCancelled && (
+      {(showHeadcount || showCost) && (
         <div className="flex flex-col gap-1 rounded bg-gray-750 border border-gray-700 px-3 py-2 bg-gray-900/60">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">
-              RSVP&apos;d:{" "}
-              <span className="text-white font-semibold">
-                {inRsvps.length}
-                {session.minPlayers != null ? ` / ${session.minPlayers}` : ""}
-              </span>
-            </span>
-            <span
-              className={
-                session.minPlayers != null &&
-                inRsvps.length >= session.minPlayers
-                  ? "text-green-400 text-xs font-semibold"
-                  : "text-yellow-400 text-xs"
-              }
-            >
-              {session.minPlayers != null
-                ? inRsvps.length >= session.minPlayers
-                  ? "✓ Enough to book"
-                  : `Need ${session.minPlayers - inRsvps.length} more`
-                : null}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">Cost / person now</span>
-            <span className="text-white font-semibold">
-              {costPerPerson(session.costTotal, inRsvps.length)}
-            </span>
-          </div>
-          {session.minPlayers != null && (
+          {showHeadcount && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">
-                Cost if {session.minPlayers} join
+                RSVP&apos;d:{" "}
+                <span className="text-white font-semibold">
+                  {inRsvps.length} / {session.minPlayers}
+                </span>
               </span>
-              <span className="text-white font-semibold">
-                {formatCents(Math.ceil(session.costTotal / session.minPlayers))}
-              </span>
+              {status && <span className={status.className}>{status.text}</span>}
             </div>
+          )}
+          {showCost && (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">Cost / person now</span>
+                <span className="text-white font-semibold">
+                  {costPerPerson(session.costTotal!, inRsvps.length)}
+                </span>
+              </div>
+              {session.minPlayers != null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">
+                    Cost if {session.minPlayers} join
+                  </span>
+                  <span className="text-white font-semibold">
+                    {formatCents(Math.ceil(session.costTotal! / session.minPlayers))}
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
