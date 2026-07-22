@@ -30,7 +30,12 @@ const DEMO_PLAYERS: Array<{ name: string; number: number | null }> = [
 async function main(): Promise<void> {
   console.log("Seeding demo team...");
 
-  // Idempotent: delete existing demo team (cascade deletes players + defaults)
+  // Idempotent: delete the demo team's sessions first — Session.teamId is a
+  // required FK with no cascade rule, so a Team delete is blocked while any
+  // Session still references it (Rsvp still cascades off Session). Then
+  // delete the team itself (cascade deletes players + defaults). Both
+  // deletes are scoped to the demo slug only — never touches other teams.
+  await prisma.session.deleteMany({ where: { team: { slug: DEMO_SLUG } } });
   await prisma.team.deleteMany({ where: { slug: DEMO_SLUG } });
 
   const team = await prisma.team.create({

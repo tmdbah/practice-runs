@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function Home() {
-  return <h1>Practice Runs</h1>;
+  redirect("/team/demo-team");
 }

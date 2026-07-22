@@ -157,6 +157,15 @@ export function TeamGrid({
             </button>
           )}
         </header>
+        {data.team.slug === "demo-team" && (
+          <div
+            role="status"
+            className="mb-4 px-3 py-2 rounded-lg bg-gold-soft border border-border-strong text-gold text-xs text-center"
+          >
+            You&apos;re viewing a public demo — feel free to explore. This is
+            sample data, not the real team.
+          </div>
+        )}
         <AvailabilityGrid
           data={data}
           currentPlayerId={playerId}
