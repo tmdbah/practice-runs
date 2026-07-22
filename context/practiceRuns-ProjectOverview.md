@@ -133,9 +133,10 @@ model DateOverride {
 // --- Phase 3, shipped. ---
 
 enum VenueType {
-  RENTED_GYM  // booked and paid for, exclusive access, worth it only above minPlayers
-  OPEN_GYM    // public gym time, no booking, "got next"
-  PARK        // free, no booking, open anytime
+  RENTED_GYM        // booked and paid for, exclusive access, worth it only above minPlayers
+  OPEN_GYM          // public gym time, no booking, "got next"
+  PARK              // free, no booking, open anytime
+  RECREATION_CENTER // public rec center, no booking, same cost-gating as OPEN_GYM/PARK
 }
 
 enum SessionStatus {

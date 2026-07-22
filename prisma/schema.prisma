@@ -72,6 +72,7 @@ enum VenueType {
   RENTED_GYM // booked and paid, exclusive access, worth it only above minPlayers
   OPEN_GYM // public gym time, no booking
   PARK // free, no booking
+  RECREATION_CENTER // public rec center, no booking, like OPEN_GYM
 }
 
 enum SessionStatus {
