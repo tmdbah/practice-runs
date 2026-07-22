@@ -75,6 +75,48 @@ async function main(): Promise<void> {
   });
 
   console.log("Seeded INSZN venue.");
+
+  // Seed a second venue for Game Day — the team's real game venue: open-gym time,
+  // never rented, no cost.
+  const gameVenue = await prisma.venue.upsert({
+    where: { id: "community-center-venue" },
+    update: {},
+    create: {
+      id: "community-center-venue",
+      name: "Northside Community Center",
+      type: "OPEN_GYM",
+      address: "Charlotte, NC",
+    },
+  });
+
+  console.log("Seeded Northside Community Center venue.");
+
+  // One demo GAME session so /team/demo-team shows off the Game Day section —
+  // next Thursday at 7:15pm, matching the real group's typical game slot.
+  const proposer = await prisma.player.findFirst({
+    where: { teamId: team.id },
+    orderBy: { name: "asc" },
+  });
+  const nextThursday = new Date();
+  nextThursday.setUTCHours(0, 0, 0, 0);
+  nextThursday.setUTCDate(
+    nextThursday.getUTCDate() + ((4 - nextThursday.getUTCDay() + 7) % 7 || 7),
+  );
+
+  await prisma.session.create({
+    data: {
+      teamId: team.id,
+      venueId: gameVenue.id,
+      proposedById: proposer?.id ?? null,
+      kind: "GAME",
+      date: nextThursday,
+      fromTime: "19:15",
+      toTime: "21:00",
+      minPlayers: 5, // real forfeit threshold
+    },
+  });
+
+  console.log("Seeded a demo Game Day session.");
 }
 
 main()

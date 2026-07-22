@@ -195,4 +195,51 @@ describe("POST /api/teams/[slug]/sessions", () => {
       }),
     );
   });
+
+  it("should create with kind: GAME and pass it through to session.create", async () => {
+    await POST(
+      makePostRequest({
+        date: "2026-07-25",
+        fromTime: "18:00",
+        toTime: "20:00",
+        kind: "GAME",
+      }),
+      makeParams(),
+    );
+
+    expect(mockSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: "GAME" }),
+      }),
+    );
+  });
+
+  it("should omit kind when not provided, letting the DB default (PRACTICE) apply", async () => {
+    await POST(
+      makePostRequest({ date: "2026-07-25", fromTime: "18:00", toTime: "20:00" }),
+      makeParams(),
+    );
+
+    expect(mockSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: undefined }),
+      }),
+    );
+  });
+
+  it("should return 400 for an invalid kind value", async () => {
+    const res = await POST(
+      makePostRequest({
+        date: "2026-07-25",
+        fromTime: "18:00",
+        toTime: "20:00",
+        kind: "SCRIMMAGE",
+      }),
+      makeParams(),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/kind/i);
+  });
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sessionInclude, toSessionResponse } from "@/lib/sessions";
+import { SessionKind } from "@/generated/prisma/enums";
 import type { SessionResponse, CreateSessionBody, ApiError } from "@/types/api";
 
 interface RouteParams {
@@ -47,6 +48,7 @@ export async function POST(
 
   const {
     venueId,
+    kind,
     date,
     fromTime,
     toTime,
@@ -60,6 +62,10 @@ export async function POST(
       { error: "date, fromTime, and toTime are required" },
       { status: 400 },
     );
+  }
+
+  if (kind !== undefined && !Object.values(SessionKind).includes(kind as SessionKind)) {
+    return NextResponse.json({ error: "Invalid kind" }, { status: 400 });
   }
 
   // Validate date string
@@ -81,6 +87,7 @@ export async function POST(
       teamId: team.id,
       venueId: venueId ?? null,
       proposedById: proposedById ?? null,
+      kind: kind ?? undefined,
       date: parsedDate,
       fromTime,
       toTime,

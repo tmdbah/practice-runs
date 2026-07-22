@@ -57,6 +57,13 @@ export const VENUE_TYPE_LABELS: Record<VenueType, string> = {
 
 export type SessionStatus = "PROPOSED" | "CONFIRMED" | "CANCELLED";
 
+export type SessionKind = "PRACTICE" | "GAME";
+
+export const SESSION_KIND_LABELS: Record<SessionKind, string> = {
+  PRACTICE: "Practice Session",
+  GAME: "Game",
+};
+
 export interface VenueSummary {
   id: string;
   name: string;
@@ -78,6 +85,7 @@ export interface SessionResponse {
   id: string;
   teamId: string;
   venue: VenueSummary | null;
+  kind: SessionKind;
   date: string; // ISO date string
   fromTime: string;
   toTime: string;
@@ -90,11 +98,12 @@ export interface SessionResponse {
 
 export interface CreateSessionBody {
   venueId?: string;
+  kind?: SessionKind; // defaults to PRACTICE (Prisma column default) when omitted
   date: string; // ISO date string "YYYY-MM-DD"
   fromTime: string; // "HH:MM"
   toTime: string; // "HH:MM"
   costTotal?: number; // cents, RENTED_GYM only
-  minPlayers?: number; // RENTED_GYM only
+  minPlayers?: number; // RENTED_GYM booking threshold, or GAME forfeit threshold
   proposedById?: string; // playerId of the proposer
 }
 

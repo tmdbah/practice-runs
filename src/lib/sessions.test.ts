@@ -30,6 +30,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       costPerHour: 10000,
     },
     proposedById: "p1",
+    kind: "PRACTICE" as const,
     date: new Date("2026-07-25T00:00:00.000Z"),
     fromTime: "18:00",
     toTime: "20:00",
@@ -62,6 +63,12 @@ describe("toSessionResponse", () => {
     expect(result.costTotal).toBe(10000);
     expect(result.minPlayers).toBe(10);
     expect(result.proposedById).toBe("p1");
+    expect(result.kind).toBe("PRACTICE");
+  });
+
+  it("should map a GAME-kind session through unchanged", () => {
+    const result = toSessionResponse(makeSession({ kind: "GAME" }) as never);
+    expect(result.kind).toBe("GAME");
   });
 
   it("should convert date to ISO string", () => {

@@ -80,6 +80,11 @@ enum SessionStatus {
   CANCELLED // slot fell through (e.g. venue booked by someone else) — kept as a historical record, not deleted
 }
 
+enum SessionKind {
+  PRACTICE // default — a proposed practice session, optionally a paid rental
+  GAME // a league game — never a rental; minPlayers means "avoid forfeit," not "worth booking"
+}
+
 model Venue {
   id             String    @id @default(cuid())
   name           String
@@ -99,11 +104,12 @@ model Session {
   venueId      String?
   venue        Venue?        @relation(fields: [venueId], references: [id])
   proposedById String? // playerId of the player who proposed — null for legacy rows
+  kind         SessionKind   @default(PRACTICE)
   date         DateTime
   fromTime     String
   toTime       String
-  costTotal    Int? // cents — RENTED_GYM only, null for OPEN_GYM / PARK
-  minPlayers   Int? // RENTED_GYM only — editable, never hardcoded
+  costTotal    Int? // cents — RENTED_GYM only, null for OPEN_GYM / PARK / GAME kind
+  minPlayers   Int? // editable, never hardcoded — "worth booking" threshold for RENTED_GYM practice sessions, "avoid forfeit" threshold for GAME kind
   status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
 

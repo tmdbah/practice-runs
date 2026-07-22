@@ -49,6 +49,7 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 - RSVP in/out against a session, optimistic with revert-on-failure — one row per player per session (upsert)
 - Live cost-per-person split and minimum-headcount check for `RENTED_GYM` sessions: RSVP'd count vs. `minPlayers`, cost/person now, and projected cost once `minPlayers` join
 - Venues open to any player via `/venues` (list) + `/venues/new` (create) + `/venues/[venueId]/edit` + `/venues/[venueId]/delete` (`createVenue`/`updateVenue`/`deleteVenue` Server Actions) — no login wall, no ownership check, same trust model as every other write in the app. Optional hours-of-operation (`openTime`/`closeTime`) shown alongside address/cost. INSZN is seeded as the first entry (~$100/2hr, `RENTED_GYM`, 6am–9pm)
+- **Game Day** (shipped ahead of Phase 4) — a `Session.kind` (`PRACTICE` | `GAME`) discriminator adds league-game coordination without a parallel data model. Surfaced as its own "Game Day" section above "Sessions" on `/team/[slug]`, with its own "+ Propose Game" button sharing the existing propose/edit form. Games are never rentals — cost UI (cost/person, cost-if-N-join) is hidden regardless of the venue picked — but `minPlayers` still applies, meaning "minimum to avoid forfeiting" rather than "worth booking," with distinct urgent red styling/copy ("Need N more to avoid forfeit") when short, vs. the neutral amber wording practice sessions keep. Defaults `minPlayers` to `5` (the real forfeit threshold) on a new Game proposal, still editable. "Mark as Booked" is hidden for games (nothing is booked); Cancel/Delete/RSVP reuse the existing `SessionStatus`/`Rsvp` machinery unchanged. Manual propose-one-at-a-time only — no bulk/season-schedule import (see Decisions log)
 
 ### V4 — Polish (Phase 4)
 
@@ -143,6 +144,11 @@ enum SessionStatus {
   CANCELLED  // slot fell through (e.g. venue booked by someone else) — kept as a historical record, not deleted
 }
 
+enum SessionKind {
+  PRACTICE   // default — a proposed practice session, optionally a paid rental
+  GAME       // a league game — never a rental; minPlayers means "avoid forfeit," not "worth booking"
+}
+
 model Venue {
   id             String      @id @default(cuid())
   name           String
@@ -160,11 +166,12 @@ model Session {
   venueId      String?
   venue        Venue?   @relation(fields: [venueId], references: [id])
   proposedById String?  // playerId of the proposer; null for legacy rows — gates the Edit/Delete buttons client-side only
+  kind         SessionKind @default(PRACTICE)
   date         DateTime
   fromTime     String
   toTime       String
-  costTotal    Int?     // cents — RENTED_GYM only, null for OPEN_GYM / PARK
-  minPlayers   Int?     // RENTED_GYM only — worth booking only above this count
+  costTotal    Int?     // cents — RENTED_GYM only, never set for GAME kind
+  minPlayers   Int?     // "worth booking" threshold for RENTED_GYM practice sessions, "avoid forfeit" threshold for GAME kind
   status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
 }
@@ -269,7 +276,7 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 | `/api/teams/[slug]/players/[playerId]/override?date=YYYY-MM-DD` | DELETE | Clear a This Week override for a date ("Reset to Usual"), reverting that day to inherit `DayDefault`. Idempotent — no-op if no override exists |
 | `/api/teams/[slug]/players` | POST | *Planned, Phase 4* — add a new player to the roster; not yet built |
 | `/api/teams/[slug]/sessions` | GET | List all sessions for the team, with venue + RSVPs |
-| `/api/teams/[slug]/sessions` | POST | Propose a new session (venue, date, time range, and for `RENTED_GYM`, cost + minPlayers) |
+| `/api/teams/[slug]/sessions` | POST | Propose a new session (venue, date, time range, optional `kind` — defaults to `PRACTICE` — and for `RENTED_GYM` practice sessions, cost + minPlayers) |
 | `/api/teams/[slug]/sessions/[sessionId]` | PATCH | Edit an existing session in place — whole-record replace, RSVPs untouched. No server-side proposer check (matches the DELETE/RSVP trust model; the UI only shows the button to the proposer) |
 | `/api/teams/[slug]/sessions/[sessionId]` | DELETE | Delete a session; RSVPs cascade-delete via the schema relation |
 | `/api/teams/[slug]/sessions/[sessionId]/rsvp` | PUT | Upsert the calling player's RSVP (`ANYTIME` = in, `UNAVAILABLE` = out); returns the full updated session |
@@ -306,6 +313,9 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Session status | Explicit `PROPOSED`/`CONFIRMED`/`CANCELLED` enum, driven by manual proposer actions (`/confirm`, `/cancel`) rather than auto-computed from RSVP count | Prompted by a real incident: a `RENTED_GYM` session never hit `minPlayers` and the venue slot got taken by another team before anyone could react — there was no way to signal "this fell through" so nobody accidentally RSVPs into a dead session. Hitting `minPlayers` doesn't mean anyone actually booked/paid for the venue, so confirmation has to be a deliberate action, not a threshold crossing |
 | Cancelled sessions | `CANCELLED` sessions are kept, not deleted — RSVPs stay as a historical record of who committed to that slot — and a "Propose alternate time here" button pre-fills a *new* session from the cancelled one's venue/cost/minPlayers (date/time left blank) rather than editing the dead session's date in place | Rewriting a cancelled session's date out from under its existing RSVPs would be ambiguous (did they RSVP to the old slot or the new one?); spinning up a fresh session keeps that answer unambiguous. There's no push-notification system in this app, so the greyed-out card + "fell through" banner *is* the notification |
 | Session notifications, layer 1 (shareable link) | Of three brainstormed layers (shareable link → Web Push → SMS), only the shareable link shipped now. It needs no new infrastructure and no reversal of an existing decision, unlike the other two | Web Push is explicitly listed in this doc's Out of Scope section ("push notifications — explicitly decided against for the current group size and use case") — reversing that is deferred to its own deliberate decision later, same treatment as the venue-admin-only reversal, once this link's actual adoption impact is visible. SMS/notification-provider choice is also deferred; if/when it's built, AWS (SNS/Pinpoint) is the preferred provider over Twilio |
+| Game Day data model | Reuse the existing `Session`/`Rsvp` model with a new `kind` (`PRACTICE`/`GAME`) discriminator, rather than a parallel `Game`/`GameRsvp` model | Games and practice sessions share nearly everything (venue, date/time range, RSVP in/out, a headcount threshold) — mirrors how `SessionStatus` already extends `Session` with an enum. A separate model would duplicate the venue/date/time/RSVP plumbing, the propose form, and both display components for no benefit |
+| Game Day cost gating | Cost UI is hidden whenever `kind === "GAME"`, regardless of the venue's rental type — not gated on venue type alone | The real game venue will be seeded as `OPEN_GYM`, but nothing stops a proposer from picking a `RENTED_GYM` venue while proposing a game. Gating strictly on kind (not venue) matches the stated intent that games never involve a cost split, and costs one extra condition to guarantee |
+| Game Day scheduling | No "one game per week" or similar constraint enforced at the schema/API level, and no bulk/season-schedule import built (games are proposed one at a time, exactly like sessions) | Bye weeks and rare doubleheaders are real, so a per-week constraint would be actively wrong. Bulk import was explicitly discussed and deferred — revisit only if the manual "+ Propose Game" flow proves to be real friction once used |
 | Shareable session link identity model | Viewing `/team/[slug]/sessions/[sessionId]` requires no stored identity; only tapping RSVP does, via a compact inline name picker scoped to just that action | Meets chat-first players where they already are — a link that forces a name pick before showing anything is more friction than the group chat message it's replacing. Matches the existing invariant that identity is never required to *read* data in this app, only to write it |
 
 ---
