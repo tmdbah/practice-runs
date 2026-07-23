@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Recreation Center Venue Type
+# Current Feature: Game Day Min-Players Default Fix
 
 ## Merge Target
 
@@ -16,22 +16,19 @@ Completed
 
 <!-- Goals & requirements -->
 
-Add a fourth `VenueType` value, `RECREATION_CENTER`, to the venue-type picker used on `/venues/new` and `/venues/[venueId]/edit`. Full implementation plan: `/Users/tmdbah/.claude/plans/modular-finding-cupcake.md`.
+Correct the real-world forfeit threshold for Game Day proposals: the league's actual minimum to avoid forfeiting is 4 players, not 5.
 
-- User confirmed a Recreation Center is free/public — same cost-gating behavior as `OPEN_GYM`/`PARK` (no cost-per-hour field, no per-session cost split or minPlayers "worth booking" threshold), not the paid/booked behavior `RENTED_GYM` gets.
-- Purely additive: new enum value in `prisma/schema.prisma` + a migration, the string added to `VenueType`/`VENUE_TYPE_LABELS` in `src/types/api.ts`, and a new `<option>` in both venue forms' type `<select>`.
-- No changes needed to `src/app/venues/actions.ts`, `src/components/SessionsView.tsx`, or `src/components/SessionSummary.tsx` — all three gate cost/minPlayers display strictly on `type === "RENTED_GYM"`, so the new value automatically falls into the existing free/no-cost path.
-- No demo venue seeded — venues are addable by any player via `/venues/new`, matching this app's existing trust model.
-- Went through `/plan` per `CLAUDE.md`'s schema-file rule, even though the change itself is small.
+- No schema change — `Session.minPlayers` was always an editable, non-hardcoded field; only the propose form's pre-filled default (and its placeholder/seed data) reflected the wrong number.
+- Updated `src/components/SessionsView.tsx`'s `handleProposeClick` (the `setMinPlayers("5")` pre-fill on a new Game proposal) and the field's placeholder, both to `4`.
+- Updated `prisma/seed.ts`'s demo Game session and `practiceRuns-ProjectOverview.md`'s Game Day feature description to match — kept `current-feature.md`'s own History entries from the original Game Day build untouched, since those are a point-in-time record of what shipped then, not a live spec.
 
 ## Notes
 
 <!-- Any extra notes -->
 
-Hit the same recurring gotcha noted elsewhere in this file's history: `npx prisma migrate dev` applied the migration but didn't regenerate `src/generated/prisma` with the new enum value in time for the already-running dev server to pick it up, causing a real "Invalid venue type" 500 on first submit. Fixed with an explicit `npx prisma generate` + dev server restart, then re-verified clean.
-
 ## History
 
+- 2026-07-22: Fixed on `fix/game-day-min-players`. Changed the Game Day propose form's `minPlayers` default from `"5"` to `"4"` in `SessionsView.tsx` (both the pre-fill in `handleProposeClick` and the field's placeholder), matching in `prisma/seed.ts`'s demo Game session and the Game Day description in `practiceRuns-ProjectOverview.md`. `Session.minPlayers` itself is untouched — it was always an editable, non-hardcoded field per this project's "Do NOT hardcode `Session.minPlayers`" rule; only the UI default was wrong. `npm run lint`, `npx vitest run` (197/197, no test changes needed — `SessionsView.tsx` has no test file, verified via Playwright per this project's convention), and `npm run build` all pass. Verified live against `demo-team`: opened a new "+ Propose Game" form and confirmed the Min-to-avoid-forfeit field now prefills `4`; cancelled out without submitting, so no cleanup needed. Status set to Completed — ready for commit per `ai-interaction.md` workflow.
 - 2026-07-22: Implemented on `feature/venue-type-recreation-center`, planned via `/plan` per `CLAUDE.md`'s schema-file rule (small change, but touches `prisma/schema.prisma`). User confirmed via `AskUserQuestion` that a Recreation Center is free/public, not paid/booked — same cost-gating as `OPEN_GYM`/`PARK`. Added `RECREATION_CENTER` to the `VenueType` enum (migration `20260722133606_add_recreation_center_venue_type`, a plain non-destructive `ALTER TYPE ... ADD VALUE`), added it to `VenueType`/`VENUE_TYPE_LABELS` in `src/types/api.ts`, and added the option to both venue forms' type `<select>` (`src/app/venues/new/page.tsx`, `src/app/venues/[venueId]/edit/page.tsx`). No changes needed to `actions.ts`/`SessionsView.tsx`/`SessionSummary.tsx` — all three gate cost/minPlayers strictly on `type === "RENTED_GYM"`, so the new value fell into the existing free path automatically, confirmed live (a $50 cost entered on a Recreation Center venue was correctly dropped, and the venue list shows no "Cost:" line for it, matching Open Gym/Park). `npm run lint`, `npx vitest run` (197/197), and `npm run build` all pass. Verified end-to-end via Playwright: created a real "Test Rec Center" venue, confirmed the edit form pre-selects it correctly, deleted it afterward to clean up. Docs (`practiceRuns-ProjectOverview.md`, `practiceRuns-ProjectPlan.html`) updated to add the new enum value to their reproduced schema blocks; `practiceRuns-Architecture.md`'s ERD doesn't enumerate `VenueType`'s values so needed no change. No demo venue seeded. Status set to Completed — ready for commit per `ai-interaction.md` workflow.
 
 ## History

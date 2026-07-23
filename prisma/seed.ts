@@ -117,7 +117,7 @@ async function main(): Promise<void> {
       date: nextThursday,
       fromTime: "19:15",
       toTime: "21:00",
-      minPlayers: 5, // real forfeit threshold
+      minPlayers: 4, // real forfeit threshold
     },
   });
 

@@ -186,7 +186,7 @@ export function SessionsView({
     }
     resetForm();
     setFormKind(kind);
-    if (kind === "GAME") setMinPlayers("5"); // real forfeit threshold, still editable
+    if (kind === "GAME") setMinPlayers("4"); // real forfeit threshold, still editable
     setShowForm(true);
   }
 
@@ -431,7 +431,7 @@ export function SessionsView({
               <input
                 type="number"
                 min="1"
-                placeholder={formKind === "GAME" ? "5" : "10"}
+                placeholder={formKind === "GAME" ? "4" : "10"}
                 value={minPlayers}
                 onChange={(e) => setMinPlayers(e.target.value)}
                 className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
