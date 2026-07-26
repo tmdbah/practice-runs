@@ -242,4 +242,35 @@ describe("POST /api/teams/[slug]/sessions", () => {
     const body = await res.json();
     expect(body.error).toMatch(/kind/i);
   });
+
+  it("should store groupId when provided (a slot within a multi-slot proposal)", async () => {
+    await POST(
+      makePostRequest({
+        date: "2026-07-25",
+        fromTime: "18:00",
+        toTime: "20:00",
+        groupId: "g1",
+      }),
+      makeParams(),
+    );
+
+    expect(mockSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ groupId: "g1" }),
+      }),
+    );
+  });
+
+  it("should default groupId to null when not provided (a standalone session)", async () => {
+    await POST(
+      makePostRequest({ date: "2026-07-25", fromTime: "18:00", toTime: "20:00" }),
+      makeParams(),
+    );
+
+    expect(mockSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ groupId: null }),
+      }),
+    );
+  });
 });

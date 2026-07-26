@@ -4,22 +4,39 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { useIdentity } from "@/hooks/use-identity";
-import { putRsvp, RsvpError } from "@/lib/session-rsvp";
+import { putRsvp, putVote, RsvpError } from "@/lib/session-rsvp";
 import { SessionsSection } from "@/components/SessionsSection";
 import { VENUE_TYPE_LABELS } from "@/types/api";
-import type { SessionKind, SessionResponse, VenueSummary } from "@/types/api";
+import type {
+  PlayerRow,
+  SessionKind,
+  SessionResponse,
+  VenueSummary,
+  VoteLevel,
+} from "@/types/api";
 
 interface Props {
   slug: string;
   sessions: SessionResponse[];
   setSessions: Dispatch<SetStateAction<SessionResponse[]>>;
   venues: VenueSummary[];
+  players: PlayerRow[];
   /** Onboarding-tour targets for the Game Day section's header + first row. */
   gameHeaderRef?: React.Ref<HTMLDivElement>;
   gameFirstRowRef?: React.Ref<HTMLElement>;
   /** Onboarding-tour targets for the Sessions section's header + first row. */
   sessionsHeaderRef?: React.Ref<HTMLDivElement>;
   sessionsFirstRowRef?: React.Ref<HTMLElement>;
+}
+
+/** One candidate time slot beyond the form's primary fields, when proposing multiple time options at once. */
+interface SlotDraft {
+  venueId: string;
+  date: string;
+  fromTime: string;
+  toTime: string;
+  costTotal: string;
+  minPlayers: string;
 }
 
 /** Estimates a session's total cost from a venue's hourly rate and the chosen time range. Returns null if the range isn't computable (missing/invalid times). */
@@ -53,6 +70,7 @@ export function SessionsView({
   sessions,
   setSessions,
   venues,
+  players,
   gameHeaderRef,
   gameFirstRowRef,
   sessionsHeaderRef,
@@ -70,6 +88,8 @@ export function SessionsView({
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [lockingInId, setLockingInId] = useState<string | null>(null);
+  const [voteErrors, setVoteErrors] = useState<Record<string, string>>({});
 
   async function handleDelete(sessionId: string): Promise<void> {
     setDeletingId(sessionId);
@@ -125,6 +145,66 @@ export function SessionsView({
     }
   }
 
+  /** Casts the calling player's vote on one slot within a grouped multi-slot proposal. Optimistic, mirrors handleRsvp. */
+  async function handleVote(sessionId: string, level: VoteLevel): Promise<void> {
+    if (!currentPlayerId) return;
+
+    const prevSessions = sessions;
+
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== sessionId) return s;
+        const existing = s.votes.find((v) => v.playerId === currentPlayerId);
+        const votes = existing
+          ? s.votes.map((v) =>
+              v.playerId === currentPlayerId ? { ...v, level } : v,
+            )
+          : [
+              ...s.votes,
+              { playerId: currentPlayerId, playerName: "You", level },
+            ];
+        return { ...s, votes };
+      }),
+    );
+
+    try {
+      const updated = await putVote(slug, sessionId, currentPlayerId, level);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? updated : s)),
+      );
+      setVoteErrors((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+    } catch (err) {
+      setSessions(prevSessions);
+      setVoteErrors((prev) => ({
+        ...prev,
+        [sessionId]: err instanceof RsvpError ? err.message : "Network error",
+      }));
+    }
+  }
+
+  /** Locks in one slot among a group as the winner: confirms it, cancels its siblings, and carries votes over into real RSVPs. Not optimistic — a mistaken flash would mislead the team, more so here since it also cancels siblings. */
+  async function handleLockIn(sessionId: string): Promise<void> {
+    setLockingInId(sessionId);
+    try {
+      const res = await fetch(
+        `/api/teams/${slug}/sessions/${sessionId}/lock-in`,
+        { method: "PATCH" },
+      );
+      if (res.ok) {
+        const updated = (await res.json()) as SessionResponse[];
+        setSessions((prev) =>
+          prev.map((s) => updated.find((u) => u.id === s.id) ?? s),
+        );
+      }
+    } finally {
+      setLockingInId(null);
+    }
+  }
+
   // Form state
   const [venueId, setVenueId] = useState(venues[0]?.id ?? "");
   const [date, setDate] = useState("");
@@ -136,6 +216,9 @@ export function SessionsView({
   // once true, time/venue changes stop auto-filling it so we never clobber
   // a deliberate override.
   const [costManuallyEdited, setCostManuallyEdited] = useState(false);
+  // Extra candidate time slots beyond the primary fields above, for proposing
+  // several options at once (Practice only) — see handleFormSubmit's multi-slot branch.
+  const [extraSlots, setExtraSlots] = useState<SlotDraft[]>([]);
 
   const selectedVenue = venues.find((v) => v.id === venueId) ?? null;
   const isRentedGym = selectedVenue?.type === "RENTED_GYM";
@@ -175,7 +258,33 @@ export function SessionsView({
     setCostTotal("");
     setMinPlayers("");
     setCostManuallyEdited(false);
+    setExtraSlots([]);
     setProposalError(null);
+  }
+
+  /** Adds a blank candidate time slot below the primary one — Practice-only, create-only. */
+  function addSlot(): void {
+    setExtraSlots((prev) => [
+      ...prev,
+      {
+        venueId: venues[0]?.id ?? "",
+        date: "",
+        fromTime: "",
+        toTime: "",
+        costTotal: "",
+        minPlayers: "",
+      },
+    ]);
+  }
+
+  function removeSlot(index: number): void {
+    setExtraSlots((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateSlot(index: number, patch: Partial<SlotDraft>): void {
+    setExtraSlots((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    );
   }
 
   /** Opens the shared propose form pre-set to `kind`, or closes it if it's already open for that kind (acts as the section's "Cancel"). */
@@ -201,6 +310,8 @@ export function SessionsView({
     setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
     // Editing an existing session shouldn't silently recompute its already-agreed cost.
     setCostManuallyEdited(true);
+    // Edits always target one existing slot — never the multi-slot create path.
+    setExtraSlots([]);
     setProposalError(null);
     setShowForm(true);
   }
@@ -217,13 +328,95 @@ export function SessionsView({
     setMinPlayers(session.minPlayers != null ? String(session.minPlayers) : "");
     // A fresh proposal — let auto-fill recompute once new times are picked.
     setCostManuallyEdited(false);
+    setExtraSlots([]);
     setProposalError(null);
     setShowForm(true);
+  }
+
+  /** Submits 2+ candidate time slots as one linked group: N sequential POSTs sharing a client-generated groupId, batched into state together once every slot has succeeded. Practice-only, create-only (edits always target one existing slot). */
+  async function handleMultiSlotSubmit(): Promise<void> {
+    if (extraSlots.some((s) => !s.date || !s.fromTime || !s.toTime)) return;
+    setSubmitting(true);
+    setProposalError(null);
+
+    const groupId = crypto.randomUUID();
+    const allSlots = [
+      {
+        venueId,
+        date,
+        fromTime,
+        toTime,
+        costTotal,
+        minPlayers,
+        showCost: showCostField,
+        showMinPlayers: showMinPlayersField,
+      },
+      ...extraSlots.map((s) => {
+        const venue = venues.find((v) => v.id === s.venueId) ?? null;
+        const rented = venue?.type === "RENTED_GYM";
+        return {
+          venueId: s.venueId,
+          date: s.date,
+          fromTime: s.fromTime,
+          toTime: s.toTime,
+          costTotal: s.costTotal,
+          minPlayers: s.minPlayers,
+          showCost: rented,
+          showMinPlayers: rented,
+        };
+      }),
+    ];
+
+    try {
+      const saved: SessionResponse[] = [];
+      for (let i = 0; i < allSlots.length; i++) {
+        const slot = allSlots[i];
+        const body = {
+          venueId: slot.venueId || undefined,
+          date: slot.date,
+          fromTime: slot.fromTime,
+          toTime: slot.toTime,
+          costTotal:
+            slot.showCost && slot.costTotal
+              ? Math.round(parseFloat(slot.costTotal) * 100)
+              : undefined,
+          minPlayers:
+            slot.showMinPlayers && slot.minPlayers
+              ? parseInt(slot.minPlayers, 10)
+              : undefined,
+          groupId,
+          proposedById: currentPlayerId ?? undefined,
+          kind: "PRACTICE" as const,
+        };
+        const res = await fetch(`/api/teams/${slug}/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = (await res.json()) as { error: string };
+          throw new Error(
+            `Time option ${i + 1}: ${err.error ?? "Failed to propose session"}`,
+          );
+        }
+        saved.push((await res.json()) as SessionResponse);
+      }
+      setSessions((prev) => [...prev, ...saved]);
+      resetForm();
+    } catch (err) {
+      setProposalError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleFormSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     if (!date || !fromTime || !toTime) return;
+    if (extraSlots.length > 0) {
+      await handleMultiSlotSubmit();
+      return;
+    }
     setSubmitting(true);
     setProposalError(null);
     try {
@@ -441,6 +634,133 @@ export function SessionsView({
         </div>
       )}
 
+      {formKind === "PRACTICE" && !editingId && (
+        <div className="flex flex-col gap-3">
+          {extraSlots.map((slot, index) => {
+            const slotVenue = venues.find((v) => v.id === slot.venueId) ?? null;
+            const slotIsRented = slotVenue?.type === "RENTED_GYM";
+            return (
+              <div
+                key={index}
+                className="flex flex-col gap-2 rounded-md bg-gray-900/60 border border-gray-700 p-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-300">
+                    Time option {index + 2}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeSlot(index)}
+                    className="text-[10px] text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                {venues.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-400">Venue</label>
+                    <select
+                      value={slot.venueId}
+                      onChange={(e) =>
+                        updateSlot(index, { venueId: e.target.value })
+                      }
+                      className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      {venues.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} ({VENUE_TYPE_LABELS[v.type]})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-400">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={slot.date}
+                    onChange={(e) => updateSlot(index, { date: e.target.value })}
+                    className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="flex flex-col gap-1 flex-1">
+                    <label className="text-xs text-gray-400">From</label>
+                    <input
+                      type="time"
+                      required
+                      value={slot.fromTime}
+                      onChange={(e) =>
+                        updateSlot(index, { fromTime: e.target.value })
+                      }
+                      className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 flex-1">
+                    <label className="text-xs text-gray-400">To</label>
+                    <input
+                      type="time"
+                      required
+                      value={slot.toTime}
+                      onChange={(e) =>
+                        updateSlot(index, { toTime: e.target.value })
+                      }
+                      className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 [color-scheme:dark]"
+                    />
+                  </div>
+                </div>
+
+                {slotIsRented && (
+                  <div className="flex gap-2">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <label className="text-xs text-gray-400">
+                        Total cost ($)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={slot.costTotal}
+                        onChange={(e) =>
+                          updateSlot(index, { costTotal: e.target.value })
+                        }
+                        className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 flex-1">
+                      <label className="text-xs text-gray-400">
+                        Min players
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={slot.minPlayers}
+                        onChange={(e) =>
+                          updateSlot(index, { minPlayers: e.target.value })
+                        }
+                        className="rounded bg-gray-700 border border-gray-600 px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={addSlot}
+            className="self-start rounded-md bg-gray-700 hover:bg-gray-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+          >
+            + Add another time option
+          </button>
+        </div>
+      )}
+
       {proposalError && (
         <p className="text-red-400 text-sm">{proposalError}</p>
       )}
@@ -456,15 +776,18 @@ export function SessionsView({
             : "Proposing…"
           : editingId
             ? "Save Changes"
-            : formKind === "GAME"
-              ? "Propose Game"
-              : "Propose Session"}
+            : extraSlots.length > 0
+              ? `Propose ${extraSlots.length + 1} Time Options`
+              : formKind === "GAME"
+                ? "Propose Game"
+                : "Propose Session"}
       </button>
     </form>
   );
 
   const sharedSectionProps = {
     slug,
+    players,
     currentPlayerId,
     rsvpErrors,
     deletingId,
@@ -480,6 +803,10 @@ export function SessionsView({
     handleCancel,
     startEdit,
     startAlternate,
+    handleVote,
+    handleLockIn,
+    lockingInId,
+    voteErrors,
   };
 
   return (

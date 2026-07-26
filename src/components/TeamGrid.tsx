@@ -186,6 +186,7 @@ export function TeamGrid({
             sessions={sessions}
             setSessions={setSessions}
             venues={venues}
+            players={data.players}
             gameHeaderRef={gameHeaderRef}
             gameFirstRowRef={gameFirstRowRef}
             sessionsHeaderRef={sessionsHeaderRef}

@@ -60,7 +60,9 @@ function makeUpdatedSession(overrides: Record<string, unknown> = {}) {
     toTime: "20:00",
     costTotal: null,
     minPlayers: null,
+    groupId: null,
     rsvps: [],
+    votes: [],
     ...overrides,
   };
 }

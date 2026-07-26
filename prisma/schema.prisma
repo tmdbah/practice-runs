@@ -36,6 +36,7 @@ model Player {
   defaults  DayDefault[]
   overrides DateOverride[]
   rsvps     Rsvp[]
+  slotVotes SlotVote[]
 
   @@index([teamId])
 }
@@ -86,6 +87,12 @@ enum SessionKind {
   GAME // a league game — never a rental; minPlayers means "avoid forfeit," not "worth booking"
 }
 
+enum VoteLevel {
+  PREFER // this player's top choice among the group's candidate slots
+  OK // fine with this slot, not their top choice
+  CANT // can't make this slot; a missing SlotVote row is treated the same as CANT
+}
+
 model Venue {
   id             String    @id @default(cuid())
   name           String
@@ -106,6 +113,7 @@ model Session {
   venue        Venue?        @relation(fields: [venueId], references: [id])
   proposedById String? // playerId of the player who proposed — null for legacy rows
   kind         SessionKind   @default(PRACTICE)
+  groupId      String? // shared by sibling candidate time slots proposed together; null = standalone (today's default)
   date         DateTime
   fromTime     String
   toTime       String
@@ -113,8 +121,10 @@ model Session {
   minPlayers   Int? // editable, never hardcoded — "worth booking" threshold for RENTED_GYM practice sessions, "avoid forfeit" threshold for GAME kind
   status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
+  votes        SlotVote[]
 
   @@index([teamId])
+  @@index([groupId])
 }
 
 model Rsvp {
@@ -124,6 +134,20 @@ model Rsvp {
   playerId  String
   player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   status    Status
+
+  @@unique([sessionId, playerId])
+}
+
+// SlotVote is kept separate from Rsvp rather than reusing Status.SPECIFIC — Rsvp.status is binary
+// (ANYTIME=in/UNAVAILABLE=out) everywhere else in the app, and giving it a third, disjoint meaning
+// just for grouped sessions would make every Rsvp write context-dependent instead of unconditional.
+model SlotVote {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  level     VoteLevel
 
   @@unique([sessionId, playerId])
 }

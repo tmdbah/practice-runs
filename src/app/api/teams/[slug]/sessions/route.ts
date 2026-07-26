@@ -49,6 +49,7 @@ export async function POST(
   const {
     venueId,
     kind,
+    groupId,
     date,
     fromTime,
     toTime,
@@ -88,6 +89,7 @@ export async function POST(
       venueId: venueId ?? null,
       proposedById: proposedById ?? null,
       kind: kind ?? undefined,
+      groupId: groupId ?? null,
       date: parsedDate,
       fromTime,
       toTime,
