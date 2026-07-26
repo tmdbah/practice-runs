@@ -81,7 +81,7 @@ graph TB
 
 **Why this shape:**
 - **Server Components fetch directly with Prisma** — no API round-trip for the initial grid render (see `coding-standards.md`). API routes exist only for the client-initiated *writes* (cell edits, add-player) and any future integration surface (webhooks, Phase 5 auth callbacks).
-- **`src/lib/` holds the real domain logic** — effective-grid resolution (override-falls-back-to-default), team-window calculation (MAX/MIN overlap), and, since Phase 3, `sessions.ts`'s `sessionInclude`/`toSessionResponse` (the shared Prisma include + response-shaping used by every Sessions route, extracted after it was duplicated three times across GET/POST/RSVP). All are pure functions over data already fetched, callable from Server Components and API routes alike. The one exception: cost-per-person and headcount-vs-`minPlayers` math lives inline in `SessionsView.tsx`, not `src/lib/` — it's cheap, purely presentational arithmetic over data the API already returns, so extracting it bought no reuse.
+- **`src/lib/` holds the real domain logic** — effective-grid resolution (override-falls-back-to-default), team-window calculation (MAX/MIN overlap), `sessions.ts`'s `sessionInclude`/`toSessionResponse` (the shared Prisma include + response-shaping used by every Sessions route, extracted after it was duplicated three times across GET/POST/RSVP), and, since multi-slot voting, `slot-scoring.ts`'s `computeSlotTally` (needed by both the grouped-session card and the shareable session-detail page, the same "used 2+ places" trigger that justified `sessions.ts`'s own extraction). All are pure functions over data already fetched, callable from Server Components and API routes alike. The one exception: cost-per-person and headcount-vs-`minPlayers` math lives inline in `SessionsView.tsx`, not `src/lib/` — it's cheap, purely presentational arithmetic over data the API already returns, so extracting it bought no reuse.
 - **`localStorage` is a genuine architectural boundary**, not an implementation detail: it's the entire identity subsystem for V1. No server-side session, no cookie, no JWT.
 
 ---
@@ -99,6 +99,8 @@ erDiagram
     Venue ||--o{ Session : has
     Session ||--o{ Rsvp : has
     Player ||--o{ Rsvp : has
+    Session ||--o{ SlotVote : has
+    Player ||--o{ SlotVote : has
 
     Team {
         string id PK
@@ -144,6 +146,7 @@ erDiagram
         string venueId FK
         string proposedById "nullable, gates Edit/Delete client-side"
         SessionKind kind "PRACTICE default"
+        string groupId "nullable, links sibling candidate slots"
         datetime date
         int costTotal
         int minPlayers
@@ -155,9 +158,15 @@ erDiagram
         string playerId FK
         Status status
     }
+    SlotVote {
+        string id PK
+        string sessionId FK
+        string playerId FK
+        VoteLevel level "PREFER / OK / CANT"
+    }
 ```
 
-Two bounded contexts share the database but never join across each other: **{Team, Player, DayDefault, DateOverride}** (recurring availability) and **{Venue, Session, Rsvp}** (one-off sessions, shipped in Phase 3). `Session.teamId` and `Rsvp.playerId` are the only links between them — deliberate, see [§7](#7-decision-log-architecture-relevant-only).
+Two bounded contexts share the database but never join across each other: **{Team, Player, DayDefault, DateOverride}** (recurring availability) and **{Venue, Session, Rsvp, SlotVote}** (one-off sessions, shipped in Phase 3; `SlotVote` added for multi-slot voting). `Session.teamId` and `Rsvp.playerId` are the only links between them — deliberate, see [§7](#7-decision-log-architecture-relevant-only).
 
 ### 4.2 Read-time computation, not stored derived state
 
@@ -325,6 +334,9 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 | Onboarding tour as a scripted first-session state (spotlight + instruct, "guide-to-tap"), not an auto-opened `EditDrawer` and not a coach-marks library | Programmatically open `EditDrawer` for the player, or adopt react-joyride/driver.js | `EditDrawer` is already a fully controlled/presentational component, so guide-to-tap needs zero changes to it — the tour just listens for the real `onSave`/toggle-click. Auto-opening would need a first-of-its-kind imperative "force open" entry point into `AvailabilityGrid`'s private `activeEdit` state, plus edge cases (dismissing an auto-opened drawer without acting). A third-party library would also need re-skinning to match the app's theme and adds a dependency for a small, one-time, 5-step flow |
 | Onboarding tour's `sessions` step (Game Day + Sessions) owned by `TeamGrid.tsx` via a second, independent `OnboardingTour` mount, rather than relocating all tour ownership up from `AvailabilityGrid.tsx` | Move all tour step state/measurement/rendering up to `TeamGrid` so one component owns the whole sequence | The Game Day/Sessions section renders outside `AvailabilityGrid.tsx`, so *something* has to own that one step elsewhere — moving everything up is a much larger change for the same result. `AvailabilityGrid` keeps its existing four steps and gains only a new `onDrawerOpenChange` callback (fired from its existing `openDrawer`/`closeDrawer`) so `TeamGrid` can hide its own tour tooltip while the real edit drawer is open, mirroring `AvailabilityGrid`'s existing `!activeEdit` guard one level up |
 | Tour step state (`tourStep`) owned by `TeamGrid`, target-rect measurement owned by `AvailabilityGrid`, `OnboardingTour` itself fully presentational | A single component owning both sequencing and DOM measurement | Mirrors the existing `TeamGrid`-owns-identity / `AvailabilityGrid`-owns-grid-internals split already in place; `AvailabilityGrid` is the only component holding real refs to the cell/toggle/Team-Window-card, so it's the natural place to compute `getBoundingClientRect()`-based target rects, re-measured via the same `useLayoutEffect` + resize-listener pattern already established by `TeamWindowCard`'s carousel fix |
+| Multi-slot voting: `SlotVote` as a new model rather than reusing `Rsvp` | Add a `SPECIFIC`-as-"OK" meaning to `Rsvp.status` | `Status` already carries one consistent meaning (available-all-day vs. not) across the grid and `Rsvp`; a third, disjoint meaning on the same column would force `Rsvp`'s currently unconditional write validation to become state-dependent, risking the one path every other session feature already depends on |
+| Multi-slot voting: `/lock-in` uses `prisma.$transaction` — the first interactive transaction in this codebase | Sequential, non-transactional updates (confirm winner, then cancel siblings, then upsert RSVPs) | A partial failure mid-sequence would leave a confirmed winner next to a still-open, still-votable sibling — a genuinely broken state, unlike the recoverable partial-failure case accepted for multi-slot *creation* (§ ProjectOverview Decisions log), which only ever risks an orphaned extra proposal row |
+| Multi-slot voting: proposal creation is N sequential client `POST`s sharing a client-generated `groupId`, not a batch endpoint | A dedicated batch-create route, itself using `$transaction` | Keeps the existing single-session `POST` validation as the only implementation of that logic; a batch route would either duplicate it or force an extraction with no other caller — premature abstraction for a rare, low-stakes failure mode at this trust/scale level |
 
 ---
 
@@ -334,7 +346,7 @@ The product/UX decisions log lives in `practiceRuns-ProjectOverview.md`. This ta
 |---|---|---|
 | **Validation** | Manual required-field checks (`if (!date \|\| ...)`) at every Server Action / API route boundary, not Zod schemas | `coding-standards.md` calls for Zod; every route shipped so far (Phase 1–3) uses manual checks instead — worth reconciling one way or the other before Phase 4 adds more routes |
 | **Error handling** | Try/catch in actions/routes, `{ success, data, error }` return shape, revert-and-inline-error on the client | No toasts/modals — the reverted cell + inline message *is* the error UI |
-| **Consistency** | No distributed transactions needed (single DB); no Prisma `$transaction` calls anywhere yet — every write (including RSVP's `upsert` and Session's cascade-delete of its `Rsvp` rows) is a single Prisma call or a DB-level `onDelete: Cascade`, not an app-level multi-statement transaction | |
+| **Consistency** | No distributed transactions needed (single DB); almost every write (including RSVP's `upsert` and Session's cascade-delete of its `Rsvp` rows) is a single Prisma call or a DB-level `onDelete: Cascade`, not an app-level multi-statement transaction. The one exception is `/lock-in` (multi-slot voting), which uses `prisma.$transaction` — the only interactive transaction in this codebase — because a partial failure there would leave a confirmed winner alongside a still-votable sibling slot | |
 | **Sync/staleness** | Pull-to-refresh + refetch-on-focus only | Explicitly not real-time — see [§1](#1-guiding-principles) principle 7 |
 | **Accessibility** | Availability grid uses explicit ARIA `role="grid"` markup (table/row/columnheader/rowheader/cell) over CSS Grid, not a bare `<div>` soup | Keeps screen-reader table semantics equivalent to a real `<table>` while allowing the responsive column sizing a `<table>` couldn't give at the ~15-row demo roster size |
 | **Security posture (V1)** | No auth; trust-based; portfolio risk handled by data isolation, not access control | Re-evaluate only at the Phase 5 trigger |

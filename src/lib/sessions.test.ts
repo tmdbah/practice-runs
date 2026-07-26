@@ -31,6 +31,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     },
     proposedById: "p1",
     kind: "PRACTICE" as const,
+    groupId: null,
     date: new Date("2026-07-25T00:00:00.000Z"),
     fromTime: "18:00",
     toTime: "20:00",
@@ -46,6 +47,13 @@ function makeSession(overrides: Record<string, unknown> = {}) {
         playerId: "p2",
         status: "UNAVAILABLE" as const,
         player: { id: "p2", name: "Darius" },
+      },
+    ],
+    votes: [
+      {
+        playerId: "p1",
+        level: "PREFER" as const,
+        player: { id: "p1", name: "Marcus" },
       },
     ],
     ...overrides,
@@ -121,6 +129,32 @@ describe("toSessionResponse", () => {
       makeSession({ proposedById: null }) as never,
     );
     expect(result.proposedById).toBeNull();
+  });
+
+  it("should map groupId when present", () => {
+    const result = toSessionResponse(makeSession({ groupId: "g1" }) as never);
+    expect(result.groupId).toBe("g1");
+  });
+
+  it("should return null groupId for a standalone session", () => {
+    const result = toSessionResponse(makeSession() as never);
+    expect(result.groupId).toBeNull();
+  });
+
+  it("should map votes with playerName", () => {
+    const result = toSessionResponse(makeSession() as never);
+
+    expect(result.votes).toHaveLength(1);
+    expect(result.votes[0]).toEqual({
+      playerId: "p1",
+      playerName: "Marcus",
+      level: "PREFER",
+    });
+  });
+
+  it("should return an empty votes array when there are no votes", () => {
+    const result = toSessionResponse(makeSession({ votes: [] }) as never);
+    expect(result.votes).toEqual([]);
   });
 });
 

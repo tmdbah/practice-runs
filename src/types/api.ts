@@ -69,6 +69,14 @@ export const SESSION_KIND_LABELS: Record<SessionKind, string> = {
   GAME: "Game",
 };
 
+export type VoteLevel = "PREFER" | "OK" | "CANT";
+
+export const VOTE_LEVEL_LABELS: Record<VoteLevel, string> = {
+  PREFER: "Prefer",
+  OK: "OK",
+  CANT: "Can't",
+};
+
 export interface VenueSummary {
   id: string;
   name: string;
@@ -86,11 +94,18 @@ export interface RsvpEntry {
   status: Status; // ANYTIME = in, UNAVAILABLE = out
 }
 
+export interface VoteEntry {
+  playerId: string;
+  playerName: string;
+  level: VoteLevel;
+}
+
 export interface SessionResponse {
   id: string;
   teamId: string;
   venue: VenueSummary | null;
   kind: SessionKind;
+  groupId: string | null; // shared by sibling candidate time slots; null = standalone session
   date: string; // ISO date string
   fromTime: string;
   toTime: string;
@@ -99,11 +114,13 @@ export interface SessionResponse {
   proposedById: string | null; // playerId of proposer; null for legacy rows
   status: SessionStatus;
   rsvps: RsvpEntry[];
+  votes: VoteEntry[]; // only meaningful when groupId is set
 }
 
 export interface CreateSessionBody {
   venueId?: string;
   kind?: SessionKind; // defaults to PRACTICE (Prisma column default) when omitted
+  groupId?: string; // shared client-generated id linking sibling candidate slots proposed together
   date: string; // ISO date string "YYYY-MM-DD"
   fromTime: string; // "HH:MM"
   toTime: string; // "HH:MM"
@@ -115,6 +132,11 @@ export interface CreateSessionBody {
 export interface UpsertRsvpBody {
   playerId: string;
   status: "ANYTIME" | "UNAVAILABLE"; // in or out
+}
+
+export interface CastVoteBody {
+  playerId: string;
+  level: VoteLevel;
 }
 
 export interface EditSessionBody {

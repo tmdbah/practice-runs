@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 import { SessionHeader, SessionCostAndRsvps } from "@/components/SessionSummary";
 import { ShareButton } from "@/components/ShareButton";
-import type { SessionKind, SessionResponse } from "@/types/api";
+import { SlotGroupCard } from "@/components/SlotGroupCard";
+import type { PlayerRow, SessionKind, SessionResponse, VoteLevel } from "@/types/api";
 
 interface Props {
   kind: SessionKind;
@@ -9,6 +10,7 @@ interface Props {
   proposeLabel: string;
   sessions: SessionResponse[]; // already filtered to this kind + sorted
   slug: string;
+  players: PlayerRow[];
   currentPlayerId: string | null;
   isFormOpenHere: boolean;
   onToggleForm: () => void;
@@ -36,6 +38,31 @@ interface Props {
   handleCancel: (sessionId: string) => Promise<void>;
   startEdit: (session: SessionResponse) => void;
   startAlternate: (session: SessionResponse) => void;
+
+  handleVote: (sessionId: string, level: VoteLevel) => Promise<void>;
+  handleLockIn: (sessionId: string) => Promise<void>;
+  lockingInId: string | null;
+  voteErrors: Record<string, string>;
+}
+
+interface SlotGroup {
+  key: string;
+  sessions: SessionResponse[];
+}
+
+/** Groups an already-sorted session list by groupId; ungrouped sessions each get their own singleton group, in place. */
+function groupByGroupId(sessions: SessionResponse[]): SlotGroup[] {
+  const order: string[] = [];
+  const bySlotGroup = new Map<string, SessionResponse[]>();
+  for (const session of sessions) {
+    const key = session.groupId ?? `solo:${session.id}`;
+    if (!bySlotGroup.has(key)) {
+      bySlotGroup.set(key, []);
+      order.push(key);
+    }
+    bySlotGroup.get(key)!.push(session);
+  }
+  return order.map((key) => ({ key, sessions: bySlotGroup.get(key)! }));
 }
 
 /**
@@ -52,6 +79,7 @@ export function SessionsSection({
   proposeLabel,
   sessions,
   slug,
+  players,
   currentPlayerId,
   isFormOpenHere,
   onToggleForm,
@@ -73,8 +101,13 @@ export function SessionsSection({
   handleCancel,
   startEdit,
   startAlternate,
+  handleVote,
+  handleLockIn,
+  lockingInId,
+  voteErrors,
 }: Props): React.ReactElement {
   const noun = kind === "GAME" ? "game" : "session";
+  const groups = groupByGroupId(sessions);
 
   return (
     <div className="flex flex-col gap-4">
@@ -101,7 +134,44 @@ export function SessionsSection({
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {sessions.map((session, index) => {
+          {groups.map((group, groupIndex) => {
+            // A group still awaiting a decision (2+ candidate slots, none locked/cancelled
+            // yet) renders as one composite card. A resolved group needs no new rendering
+            // at all: the winner (now CONFIRMED, with real Rsvps) and its cancelled siblings
+            // each fall through to the same per-session card every ungrouped session uses.
+            const isOpenGroup =
+              group.sessions.length > 1 &&
+              group.sessions.every((s) => s.status === "PROPOSED");
+
+            if (isOpenGroup) {
+              const isGroupProposer =
+                currentPlayerId != null &&
+                group.sessions[0].proposedById === currentPlayerId;
+              return (
+                <li
+                  key={group.key}
+                  ref={
+                    groupIndex === 0
+                      ? (firstRowRef as React.Ref<HTMLLIElement>)
+                      : undefined
+                  }
+                >
+                  <SlotGroupCard
+                    slots={group.sessions}
+                    players={players}
+                    slug={slug}
+                    currentPlayerId={currentPlayerId}
+                    isProposer={isGroupProposer}
+                    onVote={handleVote}
+                    onLockIn={handleLockIn}
+                    lockingInId={lockingInId}
+                    voteErrors={voteErrors}
+                  />
+                </li>
+              );
+            }
+
+            return group.sessions.map((session, sessionIndex) => {
             const myRsvp = currentPlayerId
               ? session.rsvps.find((r) => r.playerId === currentPlayerId)
               : null;
@@ -114,7 +184,11 @@ export function SessionsSection({
             return (
               <li
                 key={session.id}
-                ref={index === 0 ? (firstRowRef as React.Ref<HTMLLIElement>) : undefined}
+                ref={
+                  groupIndex === 0 && sessionIndex === 0
+                    ? (firstRowRef as React.Ref<HTMLLIElement>)
+                    : undefined
+                }
                 className={`rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-2 ${
                   isCancelled ? "opacity-60" : ""
                 }`}
@@ -267,6 +341,7 @@ export function SessionsSection({
                 )}
               </li>
             );
+            });
           })}
         </ul>
       )}

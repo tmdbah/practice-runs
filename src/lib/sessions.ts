@@ -5,6 +5,7 @@ import type { SessionResponse } from "@/types/api";
 export const sessionInclude = {
   venue: true,
   rsvps: { include: { player: { select: { id: true, name: true } } } },
+  votes: { include: { player: { select: { id: true, name: true } } } },
 } satisfies Prisma.SessionInclude;
 
 type SessionWithRelations = Prisma.SessionGetPayload<{
@@ -18,6 +19,7 @@ export function toSessionResponse(
     id: session.id,
     teamId: session.teamId,
     kind: session.kind,
+    groupId: session.groupId,
     venue: session.venue
       ? {
           id: session.venue.id,
@@ -41,6 +43,11 @@ export function toSessionResponse(
       playerId: r.playerId,
       playerName: r.player.name,
       status: r.status,
+    })),
+    votes: session.votes.map((v) => ({
+      playerId: v.playerId,
+      playerName: v.player.name,
+      level: v.level,
     })),
   };
 }

@@ -3,10 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useIdentity } from "@/hooks/use-identity";
-import { putRsvp, RsvpError } from "@/lib/session-rsvp";
-import { SessionSummary } from "@/components/SessionSummary";
+import { putRsvp, putVote, RsvpError } from "@/lib/session-rsvp";
+import { SessionSummary, headcountStatus } from "@/components/SessionSummary";
 import { ShareButton } from "@/components/ShareButton";
-import type { PlayerRow, SessionResponse } from "@/types/api";
+import { computeSlotTally } from "@/lib/slot-scoring";
+import { VOTE_LEVEL_LABELS } from "@/types/api";
+import type { PlayerRow, SessionResponse, VoteLevel } from "@/types/api";
+
+const VOTE_LEVELS: VoteLevel[] = ["PREFER", "OK", "CANT"];
 
 interface Props {
   slug: string;
@@ -31,6 +35,8 @@ export function SessionDetailView({
   const [session, setSession] = useState<SessionResponse>(initialSession);
   const [rsvping, setRsvping] = useState(false);
   const [rsvpError, setRsvpError] = useState<string | null>(null);
+  const [voting, setVoting] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
 
   const isValidPlayer =
     playerId != null && players.some((p) => p.id === playerId);
@@ -47,6 +53,23 @@ export function SessionDetailView({
     ? session.rsvps.find((r) => r.playerId === currentPlayerId)
     : null;
   const isCancelled = session.status === "CANCELLED";
+  // Still one of several linked candidate slots, not yet locked in — vote instead
+  // of a plain in/out RSVP. Once locked (or if this was never grouped), the
+  // normal binary RSVP below applies.
+  const isOpenSlot = session.groupId != null && session.status === "PROPOSED";
+  const myVote = currentPlayerId
+    ? session.votes.find((v) => v.playerId === currentPlayerId)
+    : null;
+  const tally = isOpenSlot
+    ? computeSlotTally(
+        session.votes,
+        players.map((p) => p.id),
+      )
+    : null;
+  const slotStatus =
+    tally && session.minPlayers != null
+      ? headcountStatus("PRACTICE", session.minPlayers, tally.turnout)
+      : null;
 
   async function handleRsvp(status: "ANYTIME" | "UNAVAILABLE"): Promise<void> {
     if (!currentPlayerId) return;
@@ -72,6 +95,33 @@ export function SessionDetailView({
       setRsvpError(err instanceof RsvpError ? err.message : "Network error");
     } finally {
       setRsvping(false);
+    }
+  }
+
+  async function handleVote(level: VoteLevel): Promise<void> {
+    if (!currentPlayerId) return;
+
+    const prevSession = session;
+    setSession((s) => {
+      const existing = s.votes.find((v) => v.playerId === currentPlayerId);
+      const votes = existing
+        ? s.votes.map((v) =>
+            v.playerId === currentPlayerId ? { ...v, level } : v,
+          )
+        : [...s.votes, { playerId: currentPlayerId, playerName: "You", level }];
+      return { ...s, votes };
+    });
+    setVoting(true);
+    setVoteError(null);
+
+    try {
+      const updated = await putVote(slug, session.id, currentPlayerId, level);
+      setSession(updated);
+    } catch (err) {
+      setSession(prevSession);
+      setVoteError(err instanceof RsvpError ? err.message : "Network error");
+    } finally {
+      setVoting(false);
     }
   }
 
@@ -105,9 +155,91 @@ export function SessionDetailView({
         <div className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-3">
           <SessionSummary session={session} />
 
+          {voteError && <p className="text-red-400 text-xs">{voteError}</p>}
           {rsvpError && <p className="text-red-400 text-xs">{rsvpError}</p>}
 
-          {!isCancelled && isLoaded && (
+          {!isCancelled && isLoaded && isOpenSlot && (
+            <div className="flex flex-col gap-2">
+              {tally && (
+                <div className="flex flex-col gap-1 text-xs text-gray-400">
+                  {session.minPlayers != null ? (
+                    <div className="flex items-center justify-between">
+                      <span>
+                        RSVP&apos;d:{" "}
+                        <span className="text-white font-semibold">
+                          {tally.turnout} / {session.minPlayers}
+                        </span>
+                      </span>
+                      {slotStatus && (
+                        <span className={slotStatus.className}>
+                          {slotStatus.text}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span>{tally.turnout}{" "}can make it</span>
+                  )}
+                  <span>
+                    {tally.preferCount} Prefer · {tally.okCount}{" "}OK
+                  </span>
+                  {(tally.cantCount > 0 || tally.noResponseCount > 0) && (
+                    <span>
+                      {tally.cantCount} Can&apos;t · {tally.noResponseCount}{" "}haven&apos;t responded
+                    </span>
+                  )}
+                </div>
+              )}
+              {currentPlayerId ? (
+                <div className="flex gap-2">
+                  {VOTE_LEVELS.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => handleVote(level)}
+                      disabled={voting}
+                      className={`flex-1 rounded px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                        myVote?.level === level
+                          ? level === "CANT"
+                            ? "bg-red-600 text-white"
+                            : level === "PREFER"
+                              ? "bg-green-600 text-white"
+                              : "bg-gray-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
+                      }`}
+                    >
+                      {VOTE_LEVEL_LABELS[level]}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-text-mute">
+                    Pick your name to vote:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {players.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPlayerId(p.id)}
+                        className="rounded-full bg-surface-2 border border-border px-3 py-1.5 text-xs font-medium hover:bg-surface transition-colors"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Link
+                href={`/team/${slug}`}
+                className="text-xs text-text-mute hover:text-text transition-colors"
+              >
+                This is one of several proposed time options — see the full
+                list on the team page ›
+              </Link>
+            </div>
+          )}
+
+          {!isCancelled && isLoaded && !isOpenSlot && (
             <>
               {currentPlayerId ? (
                 <div className="flex gap-2">

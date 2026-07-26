@@ -50,6 +50,7 @@ This is the enriched source of truth for **Practice Runs**, superseding `practic
 - Live cost-per-person split and minimum-headcount check for `RENTED_GYM` sessions: RSVP'd count vs. `minPlayers`, cost/person now, and projected cost once `minPlayers` join
 - Venues open to any player via `/venues` (list) + `/venues/new` (create) + `/venues/[venueId]/edit` + `/venues/[venueId]/delete` (`createVenue`/`updateVenue`/`deleteVenue` Server Actions) — no login wall, no ownership check, same trust model as every other write in the app. Optional hours-of-operation (`openTime`/`closeTime`) shown alongside address/cost. INSZN is seeded as the first entry (~$100/2hr, `RENTED_GYM`, 6am–9pm)
 - **Game Day** (shipped ahead of Phase 4) — a `Session.kind` (`PRACTICE` | `GAME`) discriminator adds league-game coordination without a parallel data model. Surfaced as its own "Game Day" section above "Sessions" on `/team/[slug]`, with its own "+ Propose Game" button sharing the existing propose/edit form. Games are never rentals — cost UI (cost/person, cost-if-N-join) is hidden regardless of the venue picked — but `minPlayers` still applies, meaning "minimum to avoid forfeiting" rather than "worth booking," with distinct urgent red styling/copy ("Need N more to avoid forfeit") when short, vs. the neutral amber wording practice sessions keep. Defaults `minPlayers` to `4` (the real forfeit threshold) on a new Game proposal, still editable. "Mark as Booked" is hidden for games (nothing is booked); Cancel/Delete/RSVP reuse the existing `SessionStatus`/`Rsvp` machinery unchanged. Manual propose-one-at-a-time only — no bulk/season-schedule import (see Decisions log)
+- **Multi-slot session voting** (shipped ahead of Phase 4, Practice only) — a proposer can offer several candidate time slots for the same coordination effort at once ("+ Add another time option" in the propose form; slots don't need to share a venue), rendered together as a linked group. Each player casts a graded Prefer/OK/Can't vote per slot (`SlotVote`/`VoteLevel`) rather than a binary RSVP, changeable anytime while the group is still open. **Turnout** (Prefer + OK) is the headline number per slot — shown against that slot's `minPlayers` using the same "RSVP'd: X/Y" + headcount-status wording a normal booked session already has — with preference strength (Prefer vs. OK) and the Can't-vs-hasn't-responded split shown underneath as secondary detail, not blended into one score: a slot with more people who can make it outranks a smaller group that just prefers it more strongly, since the goal is the best turnout, not the most enthusiasm. The proposer manually locks in a winning slot — mirroring Confirm/Cancel's "deliberate action" precedent rather than auto-resolving from the tally — which cancels the sibling slots and carries Prefer/OK votes over into real RSVPs on the winner, so it immediately looks and behaves like any other confirmed session
 
 ### V4 — Polish (Phase 4)
 
@@ -170,6 +171,7 @@ model Session {
   venue        Venue?   @relation(fields: [venueId], references: [id])
   proposedById String?  // playerId of the proposer; null for legacy rows — gates the Edit/Delete buttons client-side only
   kind         SessionKind @default(PRACTICE)
+  groupId      String?  // shared by sibling candidate time slots proposed together (Practice only); null = standalone session
   date         DateTime
   fromTime     String
   toTime       String
@@ -177,6 +179,7 @@ model Session {
   minPlayers   Int?     // "worth booking" threshold for RENTED_GYM practice sessions, "avoid forfeit" threshold for GAME kind
   status       SessionStatus @default(PROPOSED)
   rsvps        Rsvp[]
+  votes        SlotVote[] // only meaningful when groupId is set
 }
 
 model Rsvp {
@@ -186,6 +189,25 @@ model Rsvp {
   playerId  String
   player    Player   @relation(fields: [playerId], references: [id])
   status    Status   // reuse ANYTIME as "in", UNAVAILABLE as "out"
+  @@unique([sessionId, playerId])
+}
+
+enum VoteLevel {
+  PREFER // top choice among a group's candidate slots
+  OK     // fine with this slot, not the top choice
+  CANT   // can't make this slot; a missing row counts the same as CANT
+}
+
+// Kept separate from Rsvp rather than reusing Status.SPECIFIC — Rsvp.status is
+// binary (in/out) everywhere else in the app; giving it a third, disjoint meaning
+// just for grouped sessions would make every Rsvp write context-dependent.
+model SlotVote {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   Session   @relation(fields: [sessionId], references: [id])
+  playerId  String
+  player    Player    @relation(fields: [playerId], references: [id])
+  level     VoteLevel
   @@unique([sessionId, playerId])
 }
 ```
@@ -285,6 +307,8 @@ Mobile-first. Test against iPhone SE (375×667), iPhone 14 Pro Max, Samsung Gala
 | `/api/teams/[slug]/sessions/[sessionId]/rsvp` | PUT | Upsert the calling player's RSVP (`ANYTIME` = in, `UNAVAILABLE` = out); returns the full updated session |
 | `/api/teams/[slug]/sessions/[sessionId]/confirm` | PATCH | Mark a session booked for sure (`status` → `CONFIRMED`). Idempotent when already confirmed; 400 when cancelled. No server-side proposer check (matches Edit/Delete/RSVP's trust model) |
 | `/api/teams/[slug]/sessions/[sessionId]/cancel` | PATCH | Mark a session's slot as fallen through (`status` → `CANCELLED`) — reachable from `PROPOSED` or `CONFIRMED`, idempotent when already cancelled. Doesn't delete the session or its RSVPs; no server-side proposer check |
+| `/api/teams/[slug]/sessions/[sessionId]/vote` | PUT | Upsert the calling player's per-slot vote (`PREFER`/`OK`/`CANT`) within a grouped multi-slot proposal. 400 if the session has no `groupId` or is no longer `PROPOSED` (voting closes once locked/resolved) |
+| `/api/teams/[slug]/sessions/[sessionId]/lock-in` | PATCH | Locks in one candidate slot as the winner: confirms it, cancels every sibling sharing the same `groupId`, and carries each roster player's vote into a real `Rsvp` on the winner (`PREFER`/`OK` → in, `CANT`/no vote → out). Idempotent when already confirmed; 400 if `groupId` is null or already cancelled. Returns the winner followed by its now-cancelled siblings (the only session route returning an array). No server-side proposer check |
 
 ### Team Window Calculation
 
@@ -323,6 +347,14 @@ For each day: take every player who is not `UNAVAILABLE`, treat `ANYTIME` as `00
 | Game Day cost gating | Cost UI is hidden whenever `kind === "GAME"`, regardless of the venue's rental type — not gated on venue type alone | The real game venue will be seeded as `OPEN_GYM`, but nothing stops a proposer from picking a `RENTED_GYM` venue while proposing a game. Gating strictly on kind (not venue) matches the stated intent that games never involve a cost split, and costs one extra condition to guarantee |
 | Game Day scheduling | No "one game per week" or similar constraint enforced at the schema/API level, and no bulk/season-schedule import built (games are proposed one at a time, exactly like sessions) | Bye weeks and rare doubleheaders are real, so a per-week constraint would be actively wrong. Bulk import was explicitly discussed and deferred — revisit only if the manual "+ Propose Game" flow proves to be real friction once used |
 | Shareable session link identity model | Viewing `/team/[slug]/sessions/[sessionId]` requires no stored identity; only tapping RSVP does, via a compact inline name picker scoped to just that action | Meets chat-first players where they already are — a link that forces a name pick before showing anything is more friction than the group chat message it's replacing. Matches the existing invariant that identity is never required to *read* data in this app, only to write it |
+| Multi-slot voting: linking mechanism | A flat, nullable `Session.groupId` shared by sibling candidate slots, not a parent `SessionGroup` model or a self-referencing `parentSessionId` | No group-level data exists independent of its slots (no separate title/lifecycle), so a parent model would add a join for a concept with zero fields of its own. A self-FK would force an arbitrary "primary" slot designation; alternatives are peers, any one of which can win — a flat shared id treats them symmetrically |
+| Multi-slot voting: response model | A new `SlotVote`/`VoteLevel` (`PREFER`/`OK`/`CANT`) model, not a reuse of `Rsvp`/`Status.SPECIFIC` | `Status` already means the same thing in both the grid and `Rsvp` (available-all-day vs. not); overloading the unused `SPECIFIC` value as "OK, not preferred" would give it a third, disjoint meaning on the same column and force the RSVP route's unconditional status check to become context-dependent. A separate model keeps `Rsvp` untouched everywhere except one new write at lock-in |
+| Multi-slot voting: no-response handling | A roster player who never votes on a given slot doesn't count toward that slot's turnout (same as an explicit Can't), computed against the full team roster, not just responded players — but the *display* shows "N Can't · M haven't responded" as two separate numbers, not one combined "Can't" count | Matches the existing invariant that nobody is assumed free until they say so for the math that decides which slot wins; but showing "15 Can't" when really 2 declined and 13 just haven't opened the app yet reads as unfairly harsh to those 13, so the group can see who explicitly said no vs. who hasn't been heard from, without changing what actually decides the winner |
+| Multi-slot voting: turnout over preference strength | Each slot's headline number is turnout (Prefer + OK count), shown against `minPlayers` with the same "RSVP'd: X/Y" + headcount-status wording a normal session already uses; preference strength (Prefer vs. OK) is secondary, non-scoring detail, not blended into the ranking | An earlier version scored Prefer=2/OK=1 and summed to a single number, which the user caught failing on a real example: 8 people who all prefer a slot (score 16) would outrank 11 people who are just OK with a different slot that actually clears the 10-person minimum (score 11) — backwards from what matters, since the point is getting the best turnout out, not optimizing for enthusiasm |
+| Multi-slot voting: proposal creation | The client sends N sequential `POST`s to the existing session-create endpoint sharing one client-generated `groupId`, rather than a new batch endpoint | The existing propose form already isn't optimistic and tolerates one round trip; a batch endpoint would either duplicate the single-POST validation or extract a helper with no other caller. A mid-batch failure is recoverable the same way a mistaken single proposal is today (delete the stray row) — an acceptable tradeoff at this trust/scale level |
+| Multi-slot voting: lock-in transaction | `/lock-in` is this app's first use of `prisma.$transaction`, confirming the winner, cancelling siblings, and writing roster-wide `Rsvp` rows in one operation | Unlike a partial batch-create, a partial lock-in would leave a confirmed winner alongside a still-votable sibling, directly contradicting the feature's "one winner, voting closes" guarantee — a correctness case worth the codebase's first use of this pattern |
+| Multi-slot voting: vote carries over as RSVP | Locking in a slot writes real `Rsvp` rows for every roster player (`PREFER`/`OK` → `ANYTIME`/in, `CANT` or no vote → `UNAVAILABLE`/out), so the winner instantly renders through the existing single-session display/cost-split UI with zero new code | Avoids re-asking everyone who already voted to separately confirm they're coming; "OK" already means "I can make it," so treating it as "in" for headcount/cost-split purposes was confirmed with the user given real money (gym rental cost-split) rides on the RSVP count |
+| Multi-slot voting: scope | Practice sessions only; Game Day proposals stay single-slot | Confirmed with the user — the mechanism is generically useful but wasn't asked for on the Game Day side, and keeping it scoped avoids touching Game Day's existing forfeit-threshold UI |
 
 ---
 
@@ -333,7 +365,7 @@ Surfaced from group chat transcripts (2026-07-17): the recurring weekly grid ans
 | What's happening in chat | Covered by current model? |
 |---|---|
 | Propose a specific date + time slot (not recurring) | Shipped — `Session` model, propose form on `/team/[slug]` |
-| Choosing between externally-offered slots (e.g. 7–9 vs 8–10) | Gap — Team Window only reflects internal overlap; a session's `fromTime`/`toTime` is a single proposed slot, not a set of options to compare. Editable after the fact via `PATCH`, but there's no side-by-side slot picker |
+| Choosing between externally-offered slots (e.g. 7–9 vs 8–10) | Shipped — a Practice proposal can offer several candidate time slots at once (`Session.groupId` links the rows), each player casts a graded Prefer/OK/Can't vote per slot, turnout (not preference strength) ranks the slots against `minPlayers`, and the proposer manually locks in a winner, which cancels the losing alternatives |
 | "Need at least 10 of us" threshold (only matters when paying) | Shipped — `Session.minPlayers`, `RENTED_GYM` only, live RSVP-count-vs-threshold display |
 | Cost split ($100 ÷ confirmed count) | Shipped — `Session.costTotal`, `RENTED_GYM` only, live cost/person now + cost at `minPlayers` |
 | Three venue types (rented gym / open gym / park) | Shipped, one entry seeded — INSZN (~$50/hr, `RENTED_GYM`) via `prisma/seed.ts`; more venues addable through `/venues/new` as they come up |
