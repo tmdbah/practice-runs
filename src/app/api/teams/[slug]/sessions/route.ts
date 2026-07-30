@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sessionInclude, toSessionResponse } from "@/lib/sessions";
+import { sessionInclude, toSessionResponse, getSessionsForTeam } from "@/lib/sessions";
 import { SessionKind } from "@/generated/prisma/enums";
 import type { SessionResponse, CreateSessionBody, ApiError } from "@/types/api";
 
@@ -19,13 +19,9 @@ export async function GET(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const sessions = await prisma.session.findMany({
-    where: { teamId: team.id },
-    orderBy: { date: "asc" },
-    include: sessionInclude,
-  });
+  const sessions = await getSessionsForTeam(team.id);
 
-  return NextResponse.json(sessions.map(toSessionResponse));
+  return NextResponse.json(sessions);
 }
 
 export async function POST(

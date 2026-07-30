@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     team: { findUnique: vi.fn() },
-    session: { findMany: vi.fn(), create: vi.fn() },
+    session: { create: vi.fn() },
     venue: { findUnique: vi.fn() },
   },
 }));
@@ -11,13 +11,15 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/sessions", () => ({
   sessionInclude: { venue: true, rsvps: { include: { player: { select: { id: true, name: true } } } } },
   toSessionResponse: vi.fn((s: { id: string }) => ({ id: s.id, _mapped: true })),
+  getSessionsForTeam: vi.fn(),
 }));
 
 import { GET, POST } from "@/app/api/teams/[slug]/sessions/route";
 import { prisma } from "@/lib/prisma";
+import { getSessionsForTeam } from "@/lib/sessions";
 
 const mockTeamFindUnique = vi.mocked(prisma.team.findUnique);
-const mockSessionFindMany = vi.mocked(prisma.session.findMany);
+const mockGetSessionsForTeam = vi.mocked(getSessionsForTeam);
 const mockSessionCreate = vi.mocked(prisma.session.create);
 const mockVenueFindUnique = vi.mocked(prisma.venue.findUnique);
 
@@ -43,7 +45,9 @@ describe("GET /api/teams/[slug]/sessions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTeamFindUnique.mockResolvedValue({ id: "team1" } as never);
-    mockSessionFindMany.mockResolvedValue([fakeSession] as never);
+    mockGetSessionsForTeam.mockResolvedValue([
+      { id: "s1", _mapped: true },
+    ] as never);
   });
 
   it("should return 404 when team is not found", async () => {
@@ -56,17 +60,18 @@ describe("GET /api/teams/[slug]/sessions", () => {
     expect(body.error).toBe("Team not found");
   });
 
-  it("should return mapped sessions via toSessionResponse", async () => {
+  it("should return sessions from getSessionsForTeam, scoped to the team", async () => {
     const res = await GET(new Request("http://localhost"), makeParams());
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveLength(1);
     expect(body[0].id).toBe("s1");
+    expect(mockGetSessionsForTeam).toHaveBeenCalledWith("team1");
   });
 
   it("should return an empty array when there are no sessions", async () => {
-    mockSessionFindMany.mockResolvedValueOnce([]);
+    mockGetSessionsForTeam.mockResolvedValueOnce([]);
 
     const res = await GET(new Request("http://localhost"), makeParams());
 

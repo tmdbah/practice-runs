@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -161,6 +161,13 @@ describe("toSessionResponse", () => {
 describe("getSessionsForTeam", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    // Well before makeSession()'s default 2026-07-25 18:00-20:00 session.
+    vi.setSystemTime(new Date("2026-07-20T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("should query sessions scoped to the given teamId, ordered by date", async () => {
@@ -186,6 +193,37 @@ describe("getSessionsForTeam", () => {
 
   it("should return an empty array when the team has no sessions", async () => {
     mockSessionFindMany.mockResolvedValueOnce([]);
+
+    const result = await getSessionsForTeam("team1");
+
+    expect(result).toEqual([]);
+  });
+
+  it("should exclude a session whose date is entirely in the past", async () => {
+    vi.setSystemTime(new Date("2026-08-01T12:00:00.000Z")); // after 2026-07-25
+    mockSessionFindMany.mockResolvedValueOnce([makeSession()] as never);
+
+    const result = await getSessionsForTeam("team1");
+
+    expect(result).toEqual([]);
+  });
+
+  it("should still include a session today whose end time hasn't passed yet", async () => {
+    // 2026-07-25T23:30:00Z = July 25, 7:30pm Eastern (EDT) — before the
+    // session's 20:00 (8pm) end time.
+    vi.setSystemTime(new Date("2026-07-25T23:30:00.000Z"));
+    mockSessionFindMany.mockResolvedValueOnce([makeSession()] as never);
+
+    const result = await getSessionsForTeam("team1");
+
+    expect(result).toHaveLength(1);
+  });
+
+  it("should exclude a session today once its end time has passed", async () => {
+    // 2026-07-26T00:30:00Z = July 25, 8:30pm Eastern (EDT) — after the
+    // session's 20:00 (8pm) end time.
+    vi.setSystemTime(new Date("2026-07-26T00:30:00.000Z"));
+    mockSessionFindMany.mockResolvedValueOnce([makeSession()] as never);
 
     const result = await getSessionsForTeam("team1");
 
