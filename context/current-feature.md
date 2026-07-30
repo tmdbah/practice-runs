@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Fix — optimistic grid edits vanish for other players after switching identity
+# Current Feature: Replace default favicon with the UK logo
 
 ## Merge Target
 
@@ -16,16 +16,16 @@ Completed
 
 <!-- Goals & requirements -->
 
-Live bug found mid-demo: user set their own This Week availability, saved it (cell updated correctly), then tapped "Switch" to view the app as a different player. The just-saved player's cell reverted to its pre-edit inherited value in the UI — but a full page refresh showed the edit correctly, proving the server-side save had actually succeeded. So this was a client-side display bug, not a data-loss bug.
+The browser tab was showing Next.js's default scaffold favicon (leftover from `create-next-app`) instead of the team's actual logo. User asked to use the existing logo already in `public/UK_logo.PNG` (already used in the app header via `TeamGrid.tsx`) as the favicon instead.
 
 ## Notes
 
 <!-- Context, decisions, tradeoffs -->
 
-Root-caused via an Explore agent to `TeamGrid.tsx`: the "Switch player" button sets identity to empty (`setPlayerId("")`), which makes `TeamGrid` swap its returned tree from the grid subtree to `NamePicker` — unmounting `AvailabilityGrid` entirely. Picking a new name remounts a brand-new `AvailabilityGrid` instance. All of the optimistic-save state — `usualOverrides`, `weekOverrides` (what a This Week `PATCH .../override` writes to), and `windowOverrides` — lived in `useState` *inside* `AvailabilityGrid`, so the remount silently reset them to empty Maps. Since the grid renders every player's row from that same component (not just "your own"), whichever edit hadn't yet round-tripped through a full page reload just disappeared from view, even though it had already persisted server-side. The Maps were correctly keyed by playerId throughout (no cross-player attribution bug) — this was purely a state-lifetime problem caused by the remount.
+Used Next.js App Router's file-based metadata convention rather than hand-wiring `metadata.icons` in `layout.tsx`: any `icon.{ico,png,jpg,jpeg,svg}` placed directly in `src/app/` is auto-detected at build time and Next.js generates the `<link rel="icon">` tag itself. Copied (not moved) `public/UK_logo.PNG` to `src/app/icon.png` — copied because the original is still referenced directly by the header `<Image>` in `TeamGrid.tsx` and needed to stay in place — and deleted the stale `src/app/favicon.ico` so there's only one icon `<link>` tag instead of two competing ones.
 
-Fix: lifted `usualOverrides`, `weekOverrides`, and `windowOverrides` (plus their setters) out of `AvailabilityGrid` into `TeamGrid`, which never unmounts across a player switch, and passed them down as props. `cellError` and `activeEdit` stayed local to `AvailabilityGrid` — losing an inline error flash or an open drawer across a switch isn't the reported bug and isn't worth the same treatment. No new infrastructure, no schema changes, no `router.refresh()` needed — this was purely about where the state lived.
+This touches a file directly under `src/app/`, so per this project's Claude Code plan-mode rule (`src/app/` requires `/plan` before modifying), the change was planned and approved before implementation even though it's a single static asset swap with no routing/layout logic involved.
 
 ## History
 
-- 2026-07-30: User reported the bug via voice note after reproducing it live during a demo. Dispatched an Explore agent to investigate before touching any code; it isolated the exact root cause (`AvailabilityGrid` remount wiping locally-held optimistic state) with file:line citations. Implemented the state-lifting fix in `TeamGrid.tsx` and `AvailabilityGrid.tsx`. `npm run lint`, `npx vitest run` (238/238, no test changes needed — the only existing test file for this component covers pure helper functions unaffected by the change), and `npm run build` all pass. Verified live against `demo-team` via Playwright, reproducing the user's exact steps: set Amir's Monday cell to Anytime in This Week mode, saved (confirmed cell showed "Status: ANYTIME"), tapped Switch, picked Caden, confirmed — with no page reload — Amir's row still showed "Status: ANYTIME" instead of reverting to "UNAVAILABLE (inherited)". Status set to Completed — ready for commit per `ai-interaction.md` workflow.
+- 2026-07-30: User asked for the logo as favicon. Entered plan mode per the `src/app/` rule, confirmed the logo file (1024×1024 PNG) and the current default `favicon.ico`, wrote and got approval on a two-step plan (add `src/app/icon.png`, remove `src/app/favicon.ico`, no `layout.tsx` changes needed). Implemented, then verified: fresh `npm run dev` restart, confirmed via Playwright that exactly one `<link rel="icon">` tag renders pointing at `/icon.png` (`image/png`, 1024x1024) with no leftover default, and `npm run build` passes clean with `/icon.png` appearing as a static route. Status set to Completed — ready for commit per `ai-interaction.md` workflow.
