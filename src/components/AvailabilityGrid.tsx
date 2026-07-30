@@ -191,27 +191,32 @@ export function AvailabilityGrid({
       } as DayCell);
     const key = `${player.id}:${base.date}`;
     const weekOverride = weekOverrides.get(key);
-    if (weekOverride) return weekOverride;
 
-    // No explicit This Week override — this cell inherits the Usual default.
-    // If Usual was optimistically edited client-side, reflect that live
-    // instead of the stale server snapshot baked into `base`.
-    if (!base.isOverridden) {
-      const usualEntry = usualOverrides.get(`${player.id}:${dayOfWeek}`);
-      if (usualEntry) {
-        return {
-          date: base.date,
-          dayOfWeek,
-          effectiveStatus: usualEntry.status,
-          fromTime: usualEntry.fromTime,
-          toTime: usualEntry.toTime,
-          note: usualEntry.note,
-          isOverridden: false,
-        };
-      }
-    }
+    // A local weekOverrides entry — set by a This Week save, or cleared by
+    // Reset to Usual — is always authoritative over base.isOverridden,
+    // which only reflects the page-load snapshot and goes stale the moment
+    // a Reset happens this session (handleReset stores isOverridden:false
+    // here specifically to override a base that still says true).
+    const isOverridden = weekOverride ? weekOverride.isOverridden : base.isOverridden;
 
-    return base;
+    if (isOverridden) return weekOverride ?? base;
+
+    // Not overridden — this cell inherits the Usual default. Always
+    // recompute from the live Usual value (getUsualEntry already prefers
+    // an optimistic client-side Usual edit over the static snapshot)
+    // rather than trusting values baked into a weekOverrides entry, which
+    // would otherwise go stale after any Usual edit made following a
+    // Reset — the override snapshot was correct only at reset-time.
+    const usualEntry = getUsualEntry(player, dayOfWeek);
+    return {
+      date: base.date,
+      dayOfWeek,
+      effectiveStatus: usualEntry.status,
+      fromTime: usualEntry.fromTime,
+      toTime: usualEntry.toTime,
+      note: usualEntry.note,
+      isOverridden: false,
+    };
   }
 
   function getTeamWindow(dayOfWeek: number): TeamWindow | undefined {

@@ -9,10 +9,32 @@ import type { Status } from "@/generated/prisma/enums";
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
-/** Returns the next 7 calendar dates (UTC midnight) starting from today. */
+/**
+ * The real team is based in Charlotte, NC (see Venue addresses in
+ * prisma/seed.ts) — "today" must be computed against their local calendar
+ * day, not the server's UTC day, or the entire This Week window silently
+ * shifts forward by a day every evening once UTC has crossed into tomorrow
+ * while it's still today locally (roughly 8pm-midnight Eastern).
+ */
+const TEAM_TIMEZONE = "America/New_York";
+
+/** Returns today's calendar date in TEAM_TIMEZONE, as a UTC-midnight Date. */
+function getLocalToday(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TEAM_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+}
+
+/** Returns the next 7 calendar dates (UTC midnight), starting from today in TEAM_TIMEZONE. */
 function getNext7Dates(): Date[] {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const today = getLocalToday();
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setUTCDate(d.getUTCDate() + i);

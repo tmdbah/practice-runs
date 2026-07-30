@@ -359,6 +359,27 @@ describe("getTeamGrid — Phase 2 thisWeek and teamWindows", () => {
     expect(monWindow?.window).toBeNull();
   });
 
+  it("should anchor 'today' to the team's local (Eastern) calendar day, not UTC's", async () => {
+    // 2026-07-20T02:00:00Z is already July 20 in UTC, but only 10pm on
+    // July 19 in Charlotte, NC (America/New_York, EDT = UTC-4). Before the
+    // fix, getNext7Dates() truncated to UTC midnight and would report
+    // "today" as July 20 — silently shifting the whole This Week window a
+    // day ahead for anyone using the app in the evening.
+    vi.setSystemTime(new Date("2026-07-20T02:00:00.000Z"));
+
+    mockFindUnique.mockResolvedValueOnce({
+      id: "team-1",
+      slug: "demo-team",
+      name: "Demo",
+      players: [makePlayer({ id: "p1", defaults: [] })],
+    } as never);
+
+    const result = await getTeamGrid("demo-team");
+    const dates = result!.players[0].thisWeek.map((c) => c.date).sort();
+
+    expect(dates[0]).toBe("2026-07-19");
+  });
+
   it("should compute the correct overlapping window for multiple SPECIFIC players", async () => {
     // Player A: Mon 17:00–22:00 / Player B: Mon 18:00–21:00 → overlap 18:00–21:00
     mockFindUnique.mockResolvedValueOnce({
