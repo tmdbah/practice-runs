@@ -562,7 +562,11 @@ export function SessionsView({
         />
       </div>
 
-      <div className="flex gap-2">
+      {/* Stacked on narrow phones — iOS Safari's inline time-picker popover
+          has a fixed minimum width that doesn't shrink to a half-width
+          column, so side by side it visually overlaps/cuts off the other
+          field (see EditDrawer.tsx's identical fix). */}
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex flex-col gap-1 flex-1">
           <label className="text-xs text-gray-400">From</label>
           <input
@@ -687,7 +691,7 @@ export function SessionsView({
                   />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <div className="flex flex-col gap-1 flex-1">
                     <label className="text-xs text-gray-400">From</label>
                     <input

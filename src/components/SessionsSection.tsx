@@ -166,6 +166,11 @@ export function SessionsSection({
                     onLockIn={handleLockIn}
                     lockingInId={lockingInId}
                     voteErrors={voteErrors}
+                    startEdit={startEdit}
+                    handleDelete={handleDelete}
+                    deletingId={deletingId}
+                    confirmDeleteId={confirmDeleteId}
+                    setConfirmDeleteId={setConfirmDeleteId}
                   />
                 </li>
               );

@@ -120,7 +120,11 @@ export function EditDrawer({
 
         {/* Time inputs — only when SPECIFIC */}
         {status === "SPECIFIC" && (
-          <div className="flex gap-3 mb-4">
+          // Stacked on narrow phones — iOS Safari's inline time-picker
+          // popover has a fixed minimum width (wide enough for two scroll
+          // wheels) that doesn't shrink to a half-width column, so side by
+          // side it visually overlaps/cuts off the other field.
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="flex-1">
               <label className="block text-[10px] uppercase tracking-wide text-text-mute mb-1">
                 From

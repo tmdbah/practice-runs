@@ -14,6 +14,12 @@ interface Props {
   onLockIn: (sessionId: string) => Promise<void>;
   lockingInId: string | null;
   voteErrors: Record<string, string>;
+
+  startEdit: (session: SessionResponse) => void;
+  handleDelete: (sessionId: string) => Promise<void>;
+  deletingId: string | null;
+  confirmDeleteId: string | null;
+  setConfirmDeleteId: (id: string | null) => void;
 }
 
 const VOTE_LEVELS: VoteLevel[] = ["PREFER", "OK", "CANT"];
@@ -39,6 +45,11 @@ export function SlotGroupCard({
   onLockIn,
   lockingInId,
   voteErrors,
+  startEdit,
+  handleDelete,
+  deletingId,
+  confirmDeleteId,
+  setConfirmDeleteId,
 }: Props): React.ReactElement {
   const rosterPlayerIds = players.map((p) => p.id);
 
@@ -131,13 +142,53 @@ export function SlotGroupCard({
             )}
 
             {isProposer && (
-              <button
-                onClick={() => onLockIn(slot.id)}
-                disabled={lockingInId === slot.id}
-                className="self-start rounded px-2.5 py-1 text-xs font-semibold bg-gold text-gray-900 hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {lockingInId === slot.id ? "Locking in…" : "Lock in this slot"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onLockIn(slot.id)}
+                  disabled={lockingInId === slot.id}
+                  className="rounded px-2.5 py-1 text-xs font-semibold bg-gold text-gray-900 hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {lockingInId === slot.id
+                    ? "Locking in…"
+                    : "Lock in this slot"}
+                </button>
+                {confirmDeleteId === slot.id ? (
+                  <>
+                    <span className="text-[10px] text-gray-400">
+                      Delete this time option?
+                    </span>
+                    <button
+                      onClick={() => handleDelete(slot.id)}
+                      disabled={deletingId === slot.id}
+                      className="text-[10px] font-semibold text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
+                    >
+                      {deletingId === slot.id ? "Deleting…" : "Yes, delete"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      Never mind
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => startEdit(slot)}
+                      className="text-[10px] text-gray-500 hover:text-orange-400 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(slot.id)}
+                      className="text-[10px] text-gray-500 hover:text-red-400 transition-colors"
+                      aria-label="Delete time option"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         );
