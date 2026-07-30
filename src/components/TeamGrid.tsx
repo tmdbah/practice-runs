@@ -14,6 +14,9 @@ import type {
   TeamGridResponse,
   SessionResponse,
   VenueSummary,
+  ScheduleEntry,
+  DayCell,
+  TeamWindow,
 } from "@/types/api";
 
 interface TeamGridProps {
@@ -45,6 +48,21 @@ export function TeamGrid({
   const [sessionsTargetRect, setSessionsTargetRect] = useState<DOMRect | null>(
     null,
   );
+  // Optimistic grid state lives here, not inside AvailabilityGrid, so it
+  // survives the "Switch player" flow: setPlayerId("") unmounts the grid in
+  // favor of NamePicker, and picking a new name remounts a fresh
+  // AvailabilityGrid instance. State scoped to that component would be
+  // wiped by the remount, making every player's just-saved edits vanish
+  // from the UI until a hard reload re-fetched from the server.
+  const [usualOverrides, setUsualOverrides] = useState<
+    Map<string, ScheduleEntry>
+  >(new Map());
+  const [weekOverrides, setWeekOverrides] = useState<Map<string, DayCell>>(
+    new Map(),
+  );
+  const [windowOverrides, setWindowOverrides] = useState<
+    Map<string, TeamWindow>
+  >(new Map());
 
   useLayoutEffect(() => {
     function measure(): void {
@@ -179,6 +197,12 @@ export function TeamGrid({
           tourStep={tourStep}
           onTourAdvance={handleTourAdvance}
           onDrawerOpenChange={setIsDrawerOpen}
+          usualOverrides={usualOverrides}
+          setUsualOverrides={setUsualOverrides}
+          weekOverrides={weekOverrides}
+          setWeekOverrides={setWeekOverrides}
+          windowOverrides={windowOverrides}
+          setWindowOverrides={setWindowOverrides}
         />
         <div className="px-1 pb-8 mt-6">
           <SessionsView

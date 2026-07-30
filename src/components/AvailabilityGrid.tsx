@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { JSX } from "react";
+import type { Dispatch, JSX, SetStateAction } from "react";
 import { GridCell } from "@/components/GridCell";
 import { EditDrawer } from "@/components/EditDrawer";
 import { TeamWindowCard, type DayWindowEntry } from "@/components/TeamWindowCard";
@@ -95,6 +95,17 @@ interface AvailabilityGridProps {
   onTourAdvance?: (event: TourEvent) => void;
   /** Reports whether the real edit drawer is open, so a tour step spotlighting something outside this component can hide itself while it's up. */
   onDrawerOpenChange?: (isOpen: boolean) => void;
+  /**
+   * Optimistic overrides, owned by the parent (TeamGrid) rather than this
+   * component, so they survive the unmount/remount this component goes
+   * through when the player switches identity via NamePicker.
+   */
+  usualOverrides: Map<string, ScheduleEntry>;
+  setUsualOverrides: Dispatch<SetStateAction<Map<string, ScheduleEntry>>>;
+  weekOverrides: Map<string, DayCell>;
+  setWeekOverrides: Dispatch<SetStateAction<Map<string, DayCell>>>;
+  windowOverrides: Map<string, TeamWindow>;
+  setWindowOverrides: Dispatch<SetStateAction<Map<string, TeamWindow>>>;
 }
 
 interface DraftEdit {
@@ -110,6 +121,12 @@ export function AvailabilityGrid({
   tourStep = null,
   onTourAdvance,
   onDrawerOpenChange,
+  usualOverrides,
+  setUsualOverrides,
+  weekOverrides,
+  setWeekOverrides,
+  windowOverrides,
+  setWindowOverrides,
 }: AvailabilityGridProps): JSX.Element {
   // The tour's first step ("usual") needs the grid to open in Usual mode;
   // everyone else (including returning players, where tourStep is always
@@ -146,19 +163,6 @@ export function AvailabilityGrid({
     () => groupSessionsByDate(sessions),
     [sessions],
   );
-
-  // Optimistic overrides for Usual mode; keyed `${playerId}:${dayOfWeek}`
-  const [usualOverrides, setUsualOverrides] = useState<
-    Map<string, ScheduleEntry>
-  >(new Map());
-  // Optimistic overrides for This Week mode; keyed `${playerId}:${isoDate}`
-  const [weekOverrides, setWeekOverrides] = useState<Map<string, DayCell>>(
-    new Map(),
-  );
-  // Optimistic team windows; keyed by isoDate
-  const [windowOverrides, setWindowOverrides] = useState<
-    Map<string, TeamWindow>
-  >(new Map());
 
   const [cellError, setCellError] = useState<string | null>(null);
   const [activeEdit, setActiveEdit] = useState<DraftEdit | null>(null);
