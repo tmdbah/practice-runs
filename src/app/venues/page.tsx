@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getVenues } from "@/lib/venues";
 import { formatTime } from "@/lib/format-time";
+import { AddressLink } from "@/components/AddressLink";
 import { VENUE_TYPE_LABELS } from "@/types/api";
 
 interface PageProps {
@@ -58,7 +59,10 @@ export default async function VenuesPage({
                 </div>
                 {venue.address && (
                   <p className="text-sm text-text-dim mt-1">
-                    {venue.address}
+                    <AddressLink
+                      address={venue.address}
+                      className="hover:text-accent underline decoration-dotted transition-colors"
+                    />
                   </p>
                 )}
                 {venue.costPerHour != null && (
