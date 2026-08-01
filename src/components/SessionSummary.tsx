@@ -1,4 +1,5 @@
 import { formatTime } from "@/lib/format-time";
+import { AddressLink } from "@/components/AddressLink";
 import { VENUE_TYPE_LABELS } from "@/types/api";
 import type { SessionKind, SessionResponse } from "@/types/api";
 
@@ -93,7 +94,15 @@ export function SessionHeader({ session }: Props): React.ReactElement {
         {session.venue && (
           <p className="text-xs text-gray-500">
             {VENUE_TYPE_LABELS[session.venue.type]}
-            {session.venue.address ? ` · ${session.venue.address}` : ""}
+            {session.venue.address && (
+              <>
+                {" · "}
+                <AddressLink
+                  address={session.venue.address}
+                  className="hover:text-gray-300 underline decoration-dotted transition-colors"
+                />
+              </>
+            )}
           </p>
         )}
       </div>
