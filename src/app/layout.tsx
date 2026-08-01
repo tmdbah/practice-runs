@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Practice Runs",
   description: "Uncrowned Kings — weekly availability grid",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Practice Runs",
+  },
 };
 
 export default function RootLayout({

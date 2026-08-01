@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Clickable Google Maps links for venue addresses
+# Current Feature: Home screen icon (apple-touch-icon + manifest) shows the team logo
 
 ## Merge Target
 
@@ -16,22 +16,20 @@ Completed
 
 <!-- Goals & requirements -->
 
-User noticed a venue's address used to be tappable on their phone (opening Maps), then it stopped, and asked why — and asked for it to reliably work again, either as a tap-to-open-GPS link or as copyable text.
+User noticed that when saving Practice Runs to the phone home screen ("Add to Home Screen"), the Uncrowned Kings team logo doesn't appear — a generic single-letter icon shows instead. NoBadBite, another project of the user's, shows its real logo in this flow. Goal: make the Uncrowned Kings crest (`public/UK_logo.PNG`, already in the repo) show up as the home screen icon.
 
 ## Notes
 
 <!-- Context, decisions, tradeoffs -->
 
-Investigated before writing any code: confirmed via `git log -p` on `src/app/venues/page.tsx` that this app has never rendered an address as an `<a>` link — no commit ever added one. What the user saw was Safari's own automatic address detection ("Data Detectors"), a browser-only heuristic that turns plain text resembling a full address (street + city + state + zip) into a tappable Maps link — not app behavior, not present on Chrome/Android, and not controlled by any code or meta tag here (confirmed no `format-detection` meta anywhere in the codebase). It "went away" simply because that heuristic is fragile, not because anything broke.
+Compared against NoBadBite's working setup (`nobadbite/src/app/layout.tsx`, `nobadbite/public/manifest.json`) and found the root cause: `src/app/layout.tsx`'s `metadata` export had no `manifest` or `appleWebApp` fields, and there was no `public/manifest.json` or generated icon files — iOS has nothing to read for the home-screen icon and falls back to a generic glyph.
 
-Confirmed with the user (via `AskUserQuestion`) that the fix should apply everywhere a venue address renders, not just `/venues`: also the venue address shown on session cards (`SessionSummary.tsx`'s `SessionHeader`, e.g. "Open Gym · Charlotte, NC"), since that's arguably more useful — it's where people decide whether to head to a specific game/practice.
+A prior commit (`chore/favicon-uk-logo`) had already added `src/app/icon.png` (Next.js's file-convention browser-tab favicon), which is a separate mechanism from the home-screen icon — that's why the Safari share-sheet preview already showed the crest correctly while "Add to Home Screen" still didn't.
 
-Added a small reusable `AddressLink` component (`src/components/AddressLink.tsx`) rather than duplicating the anchor/URL logic at both call sites. It links to Google's documented Maps "search" URL format (`google.com/maps/search/?api=1&query=<address>`), which deep-links into the Google Maps app on mobile if installed or opens Google Maps in-browser otherwise — works identically on iOS and Android, unlike Safari's native detector. Opens in a new tab (`target="_blank" rel="noopener noreferrer"`); the address text itself stays fully selectable/copyable, covering the user's "or they can copy and paste it" fallback too. No `'use client'` needed — it's a plain anchor, renders fine from a Server Component.
+Fix: generated `public/icons/icon-192.png`, `public/icons/icon-512.png`, and `public/apple-touch-icon.png` from the existing 1024×1024 `public/UK_logo.PNG` via `sips`; added `public/manifest.json` (name, standalone display, theme colors pulled from `globals.css`'s `--color-bg`/`--color-gold`, icons array); added `manifest: "/manifest.json"` and `appleWebApp: { capable, statusBarStyle, title }` to `layout.tsx`'s `metadata` export — mirroring NoBadBite's exact pattern rather than inventing a new one. This touches `src/app/layout.tsx`, so per this project's Claude Code plan-mode rule, the change was planned and approved before implementation.
 
-This touches `src/app/venues/page.tsx` directly, so per this project's Claude Code plan-mode rule (`src/app/` requires `/plan` before modifying), the change was planned and approved before implementation.
-
-Noted but explicitly out of scope tonight: while verifying, found that the session-propose form's "Min players" field shows a default value of "10" in the UI but the session actually saves with `minPlayers: null` — pre-existing, unrelated to this change (confirmed by checking the saved row directly). Worth a look in a future session.
+First verification attempt (`npm run build`, `curl` against a local dev server) confirmed the manifest and icon files serve correctly, but the fix initially appeared not to work on the user's phone — turned out the changes were still uncommitted locally and the phone was testing the deployed production site (`practice-runs.vercel.app`), which had none of this yet. No CI workflow or `vercel.json` exists in this repo — Vercel's default GitHub integration auto-deploys on push to `main`, so a push was required, not just a local build pass.
 
 ## History
 
-- 2026-08-01: User asked why a venue address used to open Google Maps when tapped and no longer does. Investigated via `git log -p` on the venues page before touching anything, confirmed this was never app-built functionality but Safari's own fragile address auto-detection. Asked the user via `AskUserQuestion` whether the fix should also cover session cards (not just `/venues`) — confirmed yes. Entered plan mode (required for the `src/app/venues/page.tsx` change), wrote and got approval on the plan, then implemented: new `AddressLink` component, wired into `src/app/venues/page.tsx` and `src/components/SessionSummary.tsx`. `npm run lint`, `npx vitest run` (238/238), and `npm run build` all pass. Verified live against `demo-team` via Playwright: confirmed the correct `href`/`target`/`rel` on both venue-list addresses, then proposed a real session and confirmed the same link renders on the session card. Cleaned up the test session afterward. Status set to Completed — ready for commit per `ai-interaction.md` workflow.
+- 2026-08-01: User reported NoBadBite shows its logo when bookmarked to the home screen but Practice Runs doesn't. Diagnosed by comparing `nobadbite/src/app/layout.tsx` + `nobadbite/public/manifest.json` against Practice Runs' equivalents — confirmed Practice Runs had no manifest/appleWebApp metadata at all. Entered plan mode (required for the `src/app/layout.tsx` change), wrote and got approval on the plan, then implemented: generated icon files from `public/UK_logo.PNG` via `sips`, added `public/manifest.json`, updated `layout.tsx` metadata. `npm run build` passed; verified `/manifest.json`, `/apple-touch-icon.png`, and both icon sizes served 200 via a local dev server, and confirmed the `<link rel="manifest">` tag rendered in the page head. User tested on-device and the fix didn't appear — screenshots showed the deployed `practice-runs.vercel.app` still serving the old behavor (generic "U" glyph on Add to Home Screen, even though the separate `src/app/icon.png` favicon — from an earlier, unrelated commit — was already showing correctly in the share-sheet preview, which uses a different mechanism). Root cause: the fix was only committed to the local working tree, never pushed — deployment pending.
