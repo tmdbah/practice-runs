@@ -153,7 +153,7 @@ export function SessionDetailView({
         </header>
 
         <div className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 flex flex-col gap-3">
-          <SessionSummary session={session} />
+          <SessionSummary session={session} rosterSize={players.length} />
 
           {voteError && <p className="text-red-400 text-xs">{voteError}</p>}
           {rsvpError && <p className="text-red-400 text-xs">{rsvpError}</p>}
@@ -177,7 +177,12 @@ export function SessionDetailView({
                       )}
                     </div>
                   ) : (
-                    <span>{tally.turnout}{" "}can make it</span>
+                    <span>
+                      <span className="text-white font-semibold">
+                        {tally.turnout} of {players.length}
+                      </span>{" "}
+                      can make it
+                    </span>
                   )}
                   <span>
                     {tally.preferCount} Prefer · {tally.okCount}{" "}OK
