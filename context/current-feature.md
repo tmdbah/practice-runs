@@ -10,7 +10,7 @@ main
 
 <!-- Not Started|In Progress|Completed -->
 
-In Progress
+Completed
 
 ## Goals
 
@@ -34,4 +34,4 @@ No code elsewhere hardcodes a start URL — `layout.tsx`'s `appleWebApp`/`manife
 
 ## History
 
-- 2026-08-01: User reported Add to Home Screen was saving the demo team instead of the real team, despite the browser tab showing the real team. Traced to `public/manifest.json`'s `start_url: "/"` (added in the prior home-screen-icon fix) combined with `src/app/page.tsx` redirecting `/` to `/team/demo-team` — Safari now launches standalone web-app icons at the manifest's fixed `start_url` rather than the page they were added from. Removed the `start_url` key so it falls back to the referring page's URL per spec. `npm run lint` passed. Pending: `npm run build`, commit, push, and user re-verification on-device (including re-adding the existing stale home-screen icon, since iOS caches the manifest per already-installed icon).
+- 2026-08-01: User reported Add to Home Screen was saving the demo team instead of the real team, despite the browser tab showing the real team. Traced to `public/manifest.json`'s `start_url: "/"` (added in the prior home-screen-icon fix) combined with `src/app/page.tsx` redirecting `/` to `/team/demo-team` — Safari now launches standalone web-app icons at the manifest's fixed `start_url` rather than the page they were added from. Removed the `start_url` key so it falls back to the referring page's URL per spec. `npm run lint` and `npm run build` both passed. Committed on `fix/home-icon-wrong-team-url`, merged to `main`, pushed (Vercel auto-deploys from `main`); branch deleted locally and on remote. Real team URL confirmed by user: `https://practice-runs.vercel.app/team/uncrowned-kings`. Still pending: user re-verification on-device after deploy, including deleting and re-adding the existing stale home-screen icon (iOS caches the manifest per already-installed icon, so the old one won't self-correct).
