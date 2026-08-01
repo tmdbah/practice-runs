@@ -99,7 +99,12 @@ export function SlotGroupCard({
                   )}
                 </div>
               ) : (
-                <span>{tally.turnout}{" "}can make it</span>
+                <span>
+                  <span className="text-white font-semibold">
+                    {tally.turnout} of {players.length}
+                  </span>{" "}
+                  can make it
+                </span>
               )}
               <span>
                 {tally.preferCount} Prefer · {tally.okCount}{" "}OK

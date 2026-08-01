@@ -6,6 +6,11 @@ interface Props {
   session: SessionResponse;
 }
 
+interface CostAndRsvpsProps extends Props {
+  /** Total team roster size — the denominator shown when there's no minPlayers threshold to compare against. */
+  rosterSize: number;
+}
+
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -100,32 +105,36 @@ export function SessionHeader({ session }: Props): React.ReactElement {
  * Cost-split/headcount box + RSVP list. Split out from the header above so a consumer
  * can render this full-width, below a header-row that's sharing space with action buttons.
  */
-export function SessionCostAndRsvps({ session }: Props): React.ReactElement {
+export function SessionCostAndRsvps({
+  session,
+  rosterSize,
+}: CostAndRsvpsProps): React.ReactElement {
   const inRsvps = session.rsvps.filter((r) => r.status === "ANYTIME");
   const outRsvps = session.rsvps.filter((r) => r.status === "UNAVAILABLE");
   const isRented = session.venue?.type === "RENTED_GYM";
   const isCancelled = session.status === "CANCELLED";
-  const showHeadcount = session.minPlayers != null && !isCancelled;
+  const hasThreshold = session.minPlayers != null;
   const showCost = isRented && session.costTotal != null && !isCancelled;
-  const status = showHeadcount
-    ? headcountStatus(session.kind, session.minPlayers, inRsvps.length)
-    : null;
+  const status =
+    hasThreshold && !isCancelled
+      ? headcountStatus(session.kind, session.minPlayers, inRsvps.length)
+      : null;
 
   return (
     <div className="flex flex-col gap-2">
-      {(showHeadcount || showCost) && (
+      {!isCancelled && (
         <div className="flex flex-col gap-1 rounded bg-gray-750 border border-gray-700 px-3 py-2 bg-gray-900/60">
-          {showHeadcount && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">
-                RSVP&apos;d:{" "}
-                <span className="text-white font-semibold">
-                  {inRsvps.length} / {session.minPlayers}
-                </span>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-400">
+              RSVP&apos;d:{" "}
+              <span className="text-white font-semibold">
+                {hasThreshold
+                  ? `${inRsvps.length} / ${session.minPlayers}`
+                  : `${inRsvps.length} of ${rosterSize}`}
               </span>
-              {status && <span className={status.className}>{status.text}</span>}
-            </div>
-          )}
+            </span>
+            {status && <span className={status.className}>{status.text}</span>}
+          </div>
           {showCost && (
             <>
               <div className="flex items-center justify-between text-sm">
@@ -169,11 +178,14 @@ export function SessionCostAndRsvps({ session }: Props): React.ReactElement {
  * SessionsView's list item instead uses SessionHeader/SessionCostAndRsvps directly so
  * the cost box can span the card while the header shares a row with action buttons.
  */
-export function SessionSummary({ session }: Props): React.ReactElement {
+export function SessionSummary({
+  session,
+  rosterSize,
+}: CostAndRsvpsProps): React.ReactElement {
   return (
     <div className="flex flex-col gap-2">
       <SessionHeader session={session} />
-      <SessionCostAndRsvps session={session} />
+      <SessionCostAndRsvps session={session} rosterSize={rosterSize} />
     </div>
   );
 }

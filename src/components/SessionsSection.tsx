@@ -336,7 +336,7 @@ export function SessionsSection({
                 </div>
 
                 {/* Cost split + headcount + RSVP list — full card width, below the header/actions row */}
-                <SessionCostAndRsvps session={session} />
+                <SessionCostAndRsvps session={session} rosterSize={players.length} />
 
                 {/* RSVP error */}
                 {rsvpErrors[session.id] && (
