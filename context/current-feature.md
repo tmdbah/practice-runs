@@ -1,6 +1,6 @@
 <!-- When updating this file, follow the format below and don't remove the comments -->
 
-# Current Feature: Home screen icon (apple-touch-icon + manifest) shows the team logo
+# Current Feature: Fix "Add to Home Screen" always launching the demo team
 
 ## Merge Target
 
@@ -10,26 +10,28 @@ main
 
 <!-- Not Started|In Progress|Completed -->
 
-Completed
+In Progress
 
 ## Goals
 
 <!-- Goals & requirements -->
 
-User noticed that when saving Practice Runs to the phone home screen ("Add to Home Screen"), the Uncrowned Kings team logo doesn't appear — a generic single-letter icon shows instead. NoBadBite, another project of the user's, shows its real logo in this flow. Goal: make the Uncrowned Kings crest (`public/UK_logo.PNG`, already in the repo) show up as the home screen icon.
+User reported that visiting the real team URL in Safari and tapping "Add to Home Screen" was saving/launching the **demo** team instead of the real one — despite the browser tab itself showing the real team correctly. This regressed after the PWA manifest work shipped (see prior completed entry: home screen icon now shows the team logo). Previously (before that manifest existed), Add to Home Screen just bookmarked whatever URL was in the address bar and worked correctly.
 
 ## Notes
 
 <!-- Context, decisions, tradeoffs -->
 
-Compared against NoBadBite's working setup (`nobadbite/src/app/layout.tsx`, `nobadbite/public/manifest.json`) and found the root cause: `src/app/layout.tsx`'s `metadata` export had no `manifest` or `appleWebApp` fields, and there was no `public/manifest.json` or generated icon files — iOS has nothing to read for the home-screen icon and falls back to a generic glyph.
+Root cause: `public/manifest.json` had a hardcoded `"start_url": "/"` combined with `"display": "standalone"`. `src/app/page.tsx` (the `/` route) does `redirect("/team/demo-team")`. Once Safari sees a linked manifest with `display: standalone`, "Add to Home Screen" installs a mini standalone web app and launches it at the manifest's `start_url` on every subsequent tap — regardless of which page you tapped "Add to Home Screen" from. Since `start_url` was fixed to `/`, every home-screen icon launched into `/` → redirected straight to `/team/demo-team`, even when added from the real team's URL.
 
-A prior commit (`chore/favicon-uk-logo`) had already added `src/app/icon.png` (Next.js's file-convention browser-tab favicon), which is a separate mechanism from the home-screen icon — that's why the Safari share-sheet preview already showed the crest correctly while "Add to Home Screen" still didn't.
+Before the manifest existed, there was no `start_url` to override the browser's default behavior of bookmarking the literal current URL — that's why it "used to work."
 
-Fix: generated `public/icons/icon-192.png`, `public/icons/icon-512.png`, and `public/apple-touch-icon.png` from the existing 1024×1024 `public/UK_logo.PNG` via `sips`; added `public/manifest.json` (name, standalone display, theme colors pulled from `globals.css`'s `--color-bg`/`--color-gold`, icons array); added `manifest: "/manifest.json"` and `appleWebApp: { capable, statusBarStyle, title }` to `layout.tsx`'s `metadata` export — mirroring NoBadBite's exact pattern rather than inventing a new one. This touches `src/app/layout.tsx`, so per this project's Claude Code plan-mode rule, the change was planned and approved before implementation.
+Fix: removed the hardcoded `"start_url": "/"` key from `public/manifest.json` entirely. Per the Web App Manifest spec, when `start_url` is absent, it defaults to the address of the referring document (the page the manifest was linked from at Add-to-Home-Screen time) — i.e. whichever team URL the user actually added. This is a one-line removal in a static public asset, not `src/app/`, DB schema, or auth, so it didn't require plan mode under this project's Claude Code rules.
 
-First verification attempt (`npm run build`, `curl` against a local dev server) confirmed the manifest and icon files serve correctly, but the fix initially appeared not to work on the user's phone — turned out the changes were still uncommitted locally and the phone was testing the deployed production site (`practice-runs.vercel.app`), which had none of this yet. No CI workflow or `vercel.json` exists in this repo — Vercel's default GitHub integration auto-deploys on push to `main`, so a push was required, not just a local build pass.
+No code elsewhere hardcodes a start URL — `layout.tsx`'s `appleWebApp`/`manifest` metadata fields don't reference a URL, only `manifest.json` did.
+
+**Important caveat for verification:** iOS caches the manifest for icons already added to the home screen. Existing "Practice Runs" bookmarks on the user's phone won't self-correct — they need to be deleted and re-added from the real team's URL after this fix is deployed, to pick up the manifest change.
 
 ## History
 
-- 2026-08-01: User reported NoBadBite shows its logo when bookmarked to the home screen but Practice Runs doesn't. Diagnosed by comparing `nobadbite/src/app/layout.tsx` + `nobadbite/public/manifest.json` against Practice Runs' equivalents — confirmed Practice Runs had no manifest/appleWebApp metadata at all. Entered plan mode (required for the `src/app/layout.tsx` change), wrote and got approval on the plan, then implemented: generated icon files from `public/UK_logo.PNG` via `sips`, added `public/manifest.json`, updated `layout.tsx` metadata. `npm run build` passed; verified `/manifest.json`, `/apple-touch-icon.png`, and both icon sizes served 200 via a local dev server, and confirmed the `<link rel="manifest">` tag rendered in the page head. User tested on-device and the fix didn't appear — screenshots showed the deployed `practice-runs.vercel.app` still serving the old behavor (generic "U" glyph on Add to Home Screen, even though the separate `src/app/icon.png` favicon — from an earlier, unrelated commit — was already showing correctly in the share-sheet preview, which uses a different mechanism). Root cause: the fix was only committed to the local working tree, never pushed — deployment pending.
+- 2026-08-01: User reported Add to Home Screen was saving the demo team instead of the real team, despite the browser tab showing the real team. Traced to `public/manifest.json`'s `start_url: "/"` (added in the prior home-screen-icon fix) combined with `src/app/page.tsx` redirecting `/` to `/team/demo-team` — Safari now launches standalone web-app icons at the manifest's fixed `start_url` rather than the page they were added from. Removed the `start_url` key so it falls back to the referring page's URL per spec. `npm run lint` passed. Pending: `npm run build`, commit, push, and user re-verification on-device (including re-adding the existing stale home-screen icon, since iOS caches the manifest per already-installed icon).
