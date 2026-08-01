@@ -1,0 +1,21 @@
+{
+  "name": "Practice Runs",
+  "short_name": "Practice Runs",
+  "description": "Uncrowned Kings — weekly availability grid",
+  "display": "standalone",
+  "start_url": "/",
+  "background_color": "#0b0e13",
+  "theme_color": "#0b0e13",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
